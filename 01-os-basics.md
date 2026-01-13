@@ -264,3 +264,282 @@ This is the memory counterpart of CPU virtualization.
   - correctness
   - recovery after failures
 
+---
+---
+
+## Design Goals
+
+### This section answers a very important question:
+#### What should an operating system be good at?
+
+- An operating system manages physical resources such as CPU, memory, and disk
+- It handles concurrency and provides persistent storage
+- OS design requires making trade-offs between competing goals
+
+### Abstraction
+- **Abstraction** hides hardware complexity
+- It provides simple and convenient interfaces
+- Abstractions allow programmers to build complex systems more easily
+- Common OS abstractions include processes, files, and virtual memory
+
+### Performance
+- The OS should provide high performance
+- OS features introduce overhead:
+  - extra CPU time
+  - extra memory usage
+  - extra disk usage
+- The goal is to minimize overhead while providing useful functionality
+
+### Protection and isolation
+- The OS must protect applications from each other
+- It must also protect itself from applications
+- **Isolation** is the key mechanism for protection
+- A faulty or malicious program should not harm others
+
+### Reliability
+- The OS should be highly reliable
+- If the OS fails, all running applications fail
+- Reliability is difficult due to system complexity
+
+### Other design goals
+- **Energy efficiency** is important for mobile systems
+- **Security** extends protection against malicious behavior
+- **Mobility** supports systems running on small or portable devices
+- Different systems prioritize different goals
+
+---
+---
+
+## Some History
+
+### This section answers a very important question:
+#### Why do modern operating systems look the way they do today?
+
+### Early operating systems: simple libraries
+- Early operating systems provided only basic functionality
+- They were mainly libraries of commonly used routines
+- Programs ran one at a time
+- A human operator controlled job execution
+- This model is known as **batch processing**
+- There was little or no protection or isolation
+
+### The need for protection
+- Treating the OS as a simple library was unsafe
+- Any program could access files, memory, or devices
+- Privacy and safety could not be guaranteed
+- This model did not scale to multi-user systems
+
+### System calls and privilege levels
+- The **system call** mechanism was introduced
+- Programs run in **user mode** with restricted privileges
+- The OS runs in **kernel mode** with full hardware access
+- A system call uses a special instruction (**trap**) to enter the OS
+- After servicing the request, control returns to user mode
+- This enables protection and controlled access to hardware
+
+### The era of multiprogramming
+- Hardware became cheaper and more widely used
+- I/O devices were slow compared to CPUs
+- Running only one program wasted CPU time
+- **Multiprogramming** allowed multiple programs in memory
+- The OS switched between programs to improve CPU utilization
+
+### New problems introduced
+- Programs needed memory protection from each other
+- Concurrency issues became common
+- The OS had to handle interrupts correctly
+- These challenges drove major OS innovations
+
+### UNIX and consolidation of ideas
+- UNIX combined many successful OS ideas
+- It emphasized simplicity and powerful abstractions
+- Written in C, making it portable and readable
+- Encouraged sharing and collaboration
+- Influenced most modern operating systems
+
+### The PC era
+- Early PC operating systems lacked protection
+- A single faulty program could crash the system
+- Over time, PC OSes adopted UNIX-like principles
+- Modern desktop systems now include isolation and multitasking
+
+### Linux and the modern world
+- Linux reimplemented UNIX ideas in an open-source way
+- It runs on servers, desktops, phones, and embedded systems
+- Modern operating systems closely resemble classic UNIX designs
+
+### Key takeaways
+- Early OSes were simple and unsafe
+- Protection required system calls and privilege separation
+- Multiprogramming improved efficiency but added complexity
+- UNIX unified core OS principles
+- Modern OSes evolved by refining these ideas
+
+---
+---
+
+# Chapter 2 — Exam Summary (Introduction to Operating Systems)
+
+#### This summary answers one key goal:
+What must I remember from Chapter 2 to answer exam questions correctly and quickly?
+
+---
+
+## What an operating system is
+- An **operating system (OS)** is software that manages hardware resources
+- It makes the system:
+  - easy to use
+  - efficient
+  - safe
+- The OS sits between applications and hardware
+
+---
+
+## Virtualization (core concept)
+- The OS uses **virtualization** to manage resources
+- Virtualization creates useful **illusions** for programs
+- Main resources virtualized by the OS:
+  - CPU
+  - Memory
+  - Storage (files)
+
+---
+
+## CPU virtualization
+- A system may have only one physical CPU
+- Multiple programs appear to run at the same time
+- This is an illusion created by the OS
+- At any instant, only one program runs on the CPU
+- The OS rapidly switches between programs
+
+Key terms:
+- **CPU virtualization**
+- **time sharing**
+- **concurrency** (not parallelism)
+
+Important distinction:
+- Concurrency: programs make progress over time
+- Parallelism: programs run simultaneously on multiple CPUs
+
+---
+
+## Memory virtualization
+- Physical memory is shared
+- Each process sees its own **private virtual address space**
+- The same virtual address in different processes refers to different memory
+- Programs cannot access each other’s memory
+
+Key terms:
+- **virtual address**
+- **physical address**
+- **address space**
+- **memory isolation**
+
+Why this matters:
+- Safety
+- Protection
+- Simpler programming model
+
+---
+
+## Concurrency
+- **Concurrency** occurs when multiple execution flows exist
+- Threads within the same process share memory
+- Shared memory introduces correctness problems
+
+Key problem:
+- Operations like increment are not **atomic**
+- Instructions can interleave unpredictably
+- Results may be wrong or inconsistent
+
+Key terms:
+- **thread**
+- **shared memory**
+- **atomicity**
+- **non-determinism**
+
+---
+
+## Persistence
+- Memory is **volatile**
+- Data in memory is lost on crash or power failure
+- Persistent storage is required for long-term data
+
+Hardware:
+- hard drives
+- SSDs
+
+Software:
+- **file system** manages persistent data
+
+Key properties:
+- Data survives crashes and reboots
+- Files are shared across processes
+- Programs access storage via **system calls**
+
+---
+
+## System calls and protection
+- Applications cannot access hardware directly
+- Programs run in **user mode**
+- The OS runs in **kernel mode**
+- A **system call** uses a **trap** to enter the OS
+- Control returns safely to user mode after service
+
+Why this exists:
+- Protection
+- Isolation
+- Controlled hardware access
+
+---
+
+## OS as a resource manager
+- Resources:
+  - CPU
+  - memory
+  - disk
+- The OS decides:
+  - who gets a resource
+  - when
+  - for how long
+- Goals include:
+  - efficiency
+  - fairness
+  - responsiveness
+
+---
+
+## Design goals of an OS
+- **Abstraction**: hide complexity
+- **Performance**: minimize overhead
+- **Protection**: isolate programs
+- **Reliability**: OS failure affects all programs
+
+Additional goals (context-dependent):
+- energy efficiency
+- security
+- mobility
+
+---
+
+## Historical evolution (conceptual)
+- Early OSes were simple libraries
+- Lack of protection caused problems
+- **System calls** and privilege separation were introduced
+- **Multiprogramming** improved CPU utilization
+- Introduced new challenges:
+  - concurrency
+  - memory protection
+- UNIX unified many core OS ideas
+- Modern OSes reuse and refine these principles
+
+---
+
+## Exam checklist (use before submission)
+- I can explain what virtualization means
+- I know the difference between concurrency and parallelism
+- I understand virtual memory vs physical memory
+- I know why system calls exist
+- I can explain why concurrency causes bugs
+- I know why persistence is needed
+- I can name core OS design goals
