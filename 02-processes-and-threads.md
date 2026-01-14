@@ -912,3 +912,587 @@ This pattern is fundamental to:
 - I know why `wait()` makes execution predictable
 - I understand why UNIX separates fork and exec
 - I know what signals are at a high level
+
+---
+---
+
+# Concurrency: An Introduction
+
+### This section answers a fundamental question:
+#### What changes when a program has more than one point of execution?
+
+---
+
+## Threads: a new abstraction
+
+A **thread** is a single point of execution within a process.
+
+- A traditional process has one thread of execution
+- A multi-threaded process has multiple threads
+- Each thread executes independently
+
+---
+
+## Threads vs processes
+
+| Feature | Process | Thread |
+|------|------|------|
+| Address space | Private | Shared |
+| Program counter | One | One per thread |
+| Registers | One set | One set per thread |
+| Stack | One | One per thread |
+| Heap | Private | Shared |
+| Isolation | Strong | Weak |
+
+Threads are lighter than processes but more dangerous.
+
+---
+
+## Thread machine state
+
+Each thread has its own execution state:
+- program counter (PC)
+- registers
+- stack
+
+Threads must be context-switched just like processes.
+
+---
+
+## Context switching between threads
+
+- Switching threads requires saving and restoring registers
+- The address space remains the same
+- No page-table switch is needed
+
+This makes thread switches faster than process switches.
+
+---
+
+## PCB vs TCB
+
+- PCB (Process Control Block) stores process-wide state
+- TCB (Thread Control Block) stores per-thread state
+- A single process may have multiple TCBs
+
+---
+
+## Stack organization
+
+### Single-threaded process
+- One stack in the address space
+
+### Multi-threaded process
+- One stack per thread
+- All stacks live in the same address space
+
+Stack contents include:
+- local variables
+- function arguments
+- return addresses
+
+This is known as thread-local storage.
+
+---
+
+## Why threads are dangerous
+
+- Threads share memory
+- Execution order is unpredictable
+- Threads can interfere with each other
+- Bugs depend on timing and scheduling
+
+This motivates the study of concurrency.
+
+---
+
+## Key takeaway
+
+A thread is an execution unit inside a process; threads share memory but maintain independent execution state, making concurrency efficient but error-prone.
+
+---
+---
+
+## 26.1 An Example: Thread Creation
+
+### This section answers an important question:
+#### What happens when we create threads, and why does execution order become unpredictable?
+
+---
+
+## Basic setup
+- One main thread creates two worker threads
+- Each worker thread runs the same function
+- Each prints a different value ("A" or "B") and then exits
+- The main thread waits for both threads using `pthread_join()`
+
+---
+
+## Thread creation
+- Threads are created with `pthread_create()`
+- After creation, a thread may:
+  - start running immediately
+  - or remain ready and run later
+- There is no guarantee about when a thread will run
+
+---
+
+## Thread completion
+- `pthread_join()` waits for a specific thread to finish
+- The calling thread blocks until the target thread completes
+- Similar in spirit to `wait()` for processes
+
+---
+
+## Nondeterministic execution order
+- The order in which threads execute is not predictable
+- A thread created first may run after a thread created later
+- Output such as "A" and "B" may appear in any order
+
+This behavior is due to the scheduler, not the program logic.
+
+---
+
+## Execution traces
+- Multiple valid execution orders exist for the same program
+- All shown interleavings are correct
+- No single execution order can be assumed
+
+---
+
+## Thread creation vs function calls
+- Creating a thread resembles a function call
+- Unlike a function call:
+  - the thread runs concurrently
+  - it executes independently of the caller
+  - it may run before or after the caller continues
+
+---
+
+## Early warning
+- Even without shared data, threads introduce nondeterminism
+- Reasoning about program behavior becomes harder
+- This prepares for the next problem: shared data
+
+---
+
+## Key takeaway
+Thread creation immediately introduces nondeterministic execution because threads run independently and are scheduled unpredictably.
+
+---
+---
+
+## 26.2 Why It Gets Worse: Shared Data
+
+### This section answers a critical question:
+#### Why does concurrency become incorrect when threads share data?
+
+---
+
+## Shared data changes everything
+- Threads share the same address space
+- Shared variables can be accessed by multiple threads
+- This introduces correctness problems, not just confusion
+
+---
+
+## The example
+- Two threads update a global variable `counter`
+- Each thread increments `counter` many times
+- Expected result: `counter = 20,000,000`
+
+---
+
+## What actually happens
+- The final value is often less than expected
+- Each run may produce a different result
+- The program is nondeterministic and incorrect
+
+---
+
+## Why this happens
+- The operation `counter = counter + 1` is not atomic
+- It consists of multiple steps:
+  1. load the value from memory
+  2. increment the value
+  3. store the value back
+- Threads can interleave these steps
+
+---
+
+## Race conditions
+- A race condition occurs when multiple threads access shared data
+- At least one access is a write
+- The result depends on timing and scheduling
+
+---
+
+## Why a single CPU does not help
+- Instructions can be interleaved even on one processor
+- Context switches can occur between steps
+- Parallel hardware is not required for races
+
+---
+
+## Nondeterminism
+- The scheduler decides which thread runs
+- Scheduling decisions vary between runs
+- Small timing changes produce different outcomes
+
+---
+
+## Key insight
+Correct-looking code can still be wrong under concurrency.
+
+---
+
+## Key takeaway
+When threads share data, non-atomic operations can interleave unpredictably, leading to race conditions and incorrect results.
+
+---
+---
+
+## 26.3 The Heart of the Problem: Uncontrolled Scheduling
+
+### This section answers the central question of concurrency:
+#### Why do correct-looking programs produce incorrect results under concurrency?
+
+---
+
+## The misleading simplicity
+- A statement like `counter = counter + 1` looks simple
+- It appears to be a single operation
+- In reality, it is composed of multiple machine instructions
+
+---
+
+## What the CPU actually executes
+Incrementing a shared variable typically involves:
+1. loading the value from memory into a register
+2. incrementing the register
+3. storing the register back to memory
+
+Each step is a separate instruction.
+
+---
+
+## Scheduling at instruction granularity
+- The OS scheduler can interrupt a thread at any instruction
+- On an interrupt:
+  - the thread’s PC and registers are saved
+  - another thread may run
+- Threads can be interleaved between these instructions
+
+---
+
+## How the race occurs
+- Thread 1 loads the value
+- Thread 1 increments the value
+- Thread 1 is interrupted before storing
+- Thread 2 loads the old value
+- Thread 2 increments and stores it
+- Thread 1 resumes and stores its outdated value
+
+The update from one thread is lost.
+
+---
+
+## Race condition
+A **race condition** occurs when:
+- multiple threads access shared data
+- at least one thread writes to it
+- the outcome depends on timing
+
+The result becomes nondeterministic.
+
+---
+
+## Determinism vs indeterminism
+- Without concurrency: same input → same output
+- With uncontrolled scheduling: same input → different outputs
+- Execution becomes indeterminate
+
+---
+
+## Critical section
+- A **critical section** is code that accesses shared data
+- It must not be executed by more than one thread at a time
+- Failing to protect it leads to race conditions
+
+---
+
+## Mutual exclusion (conceptual)
+- Mutual exclusion ensures only one thread executes a critical section
+- This property is required for correctness
+- How to enforce it is discussed later
+
+---
+
+## Key takeaway
+Concurrency bugs arise because threads can be scheduled and interleaved at instruction boundaries, causing race conditions in non-atomic operations.
+
+---
+---
+
+## 26.4 The Wish for Atomicity
+
+### This section answers a natural question:
+#### Why don’t we simply make shared-data operations atomic?
+
+---
+
+## The basic idea
+- Race conditions occur because operations are not atomic
+- A simple-looking statement expands into multiple instructions
+- Context switches can occur between those instructions
+
+---
+
+## Atomicity
+- An atomic operation executes as a single, indivisible unit
+- It has no intermediate state
+- It is either fully executed or not executed at all
+- Interrupts can only occur before or after the operation
+
+This is often described as “all or nothing”.
+
+---
+
+## The ideal (but unrealistic) solution
+- Imagine a single instruction that updates memory atomically
+- Such an instruction would eliminate races for that operation
+- However, hardware cannot support atomic versions of all operations
+
+---
+
+## Why hardware alone is insufficient
+- Complex operations cannot be made atomic in hardware
+- Data structures such as trees or lists are too complex
+- A general-purpose instruction set cannot provide atomic support for everything
+
+---
+
+## The real approach
+- Hardware provides a small set of simple atomic primitives
+- These primitives are combined with OS support
+- Higher-level synchronization mechanisms are built on top
+
+---
+
+## Key concurrency terms
+
+### Critical section
+- Code that accesses a shared resource
+- Must not be executed by more than one thread at a time
+
+### Race condition
+- Occurs when multiple threads enter a critical section
+- At least one thread modifies shared data
+- Outcome depends on timing
+
+### Indeterminate program
+- Program output varies from run to run
+- Caused by race conditions
+- Execution is not deterministic
+
+### Mutual exclusion
+- Ensures only one thread enters a critical section
+- Prevents race conditions
+- Leads to deterministic behavior
+
+---
+
+## Key takeaway
+Because operations are not atomic, concurrent programs require synchronization and mutual exclusion to safely access shared data.
+
+---
+---
+
+## 26.5 One More Problem: Waiting For Another
+
+### This section introduces a second major class of concurrency problems:
+#### How can one thread wait for another to complete an action before continuing?
+
+---
+
+## Waiting as a concurrency problem
+- Not all concurrency issues involve shared data
+- Some problems require correct ordering of execution
+- A thread may need to wait until another thread finishes work
+
+---
+
+## Common examples
+- A thread waits for disk I/O to complete
+- A thread waits for another thread to produce data
+- A thread must not proceed until a condition becomes true
+
+---
+
+## Why busy-waiting is bad
+- Continuously checking a condition wastes CPU time
+- It prevents efficient resource utilization
+- Real systems must avoid spinning
+
+---
+
+## Sleeping and waking
+- Threads should sleep when progress is impossible
+- Threads should be woken when the needed event occurs
+- This pattern is common in operating systems
+
+---
+
+## Different from atomicity
+- Atomicity prevents race conditions on shared data
+- Waiting ensures correct execution order
+- Both are necessary for correct concurrent programs
+
+---
+
+## What this prepares for
+- Future chapters introduce mechanisms to support waiting
+- These include sleep/wakeup and condition variables
+- This section explains why such mechanisms are needed
+
+---
+
+## Key takeaway
+Concurrency requires not only atomic access to shared data but also mechanisms for threads to wait and coordinate their execution.
+
+---
+---
+
+# Chapter 26 — Exam Summary  
+## Concurrency: An Introduction
+
+### This summary answers the main exam goal:
+
+#### Why does concurrency make programs hard to reason about, and what core problems does it introduce?
+
+---
+
+## What concurrency is about
+- Concurrency means **multiple threads executing within the same process**
+- Threads:
+  - share the same address space
+  - run independently
+  - are scheduled unpredictably
+- Concurrency improves performance and responsiveness
+- Concurrency introduces **correctness problems**
+
+---
+
+## Threads vs processes (core contrast)
+- Processes are isolated by separate address spaces
+- Threads share memory inside a process
+- Threads are lighter and faster than processes
+- Shared memory is the root of concurrency problems
+
+---
+
+## Nondeterminism
+- The scheduler decides when each thread runs
+- Execution order cannot be predicted
+- Creation order does not imply execution order
+- The same program can behave differently across runs
+
+---
+
+## Shared data and race conditions
+- When threads access shared variables:
+  - incorrect results can occur
+- Even on a single CPU, races are possible
+- The statement `counter = counter + 1` is **not atomic**
+- Machine instructions can interleave in harmful ways
+
+---
+
+## Uncontrolled scheduling (the core problem)
+- Threads can be interrupted at instruction boundaries
+- Context switches occur transparently
+- Interleaving causes lost updates
+- Correct-looking code can be wrong
+
+---
+
+## Critical section
+- A **critical section** is code that accesses shared data
+- It must not be executed by more than one thread at a time
+- Failing to protect it leads to race conditions
+
+---
+
+## Atomicity
+- Atomic operations execute as indivisible units
+- Atomicity prevents intermediate states
+- Hardware cannot provide atomicity for all operations
+- Only a small set of atomic primitives is feasible
+
+---
+
+## Mutual exclusion
+- Mutual exclusion ensures:
+  - only one thread enters a critical section
+- It is required to avoid races
+- It restores deterministic behavior
+
+---
+
+## Indeterminate programs
+- Programs with race conditions are indeterminate
+- Output varies from run to run
+- Timing determines results
+- Such bugs are difficult to debug and reproduce
+
+---
+
+## Waiting and coordination
+- Concurrency problems are not only about shared data
+- Threads may need to wait for other threads
+- Busy-waiting wastes CPU time
+- Threads must be able to sleep and be woken
+
+---
+
+## Two classes of concurrency problems
+1. **Data access problems**
+   - race conditions
+   - atomicity
+   - critical sections
+2. **Coordination problems**
+   - waiting for another thread
+   - sleeping and waking
+   - ordering constraints
+
+---
+
+## Why this is an OS topic
+- The OS controls scheduling
+- The OS provides atomic primitives
+- The OS provides sleep/wakeup mechanisms
+- Correct concurrency requires hardware and OS support
+
+---
+
+## Common exam traps
+- Thinking a single CPU avoids races
+- Assuming `counter++` is atomic
+- Confusing atomicity with mutual exclusion
+- Forgetting waiting is a separate problem
+- Assuming deterministic output in concurrent programs
+
+---
+
+## One-sentence exam takeaway
+Concurrency introduces nondeterminism and correctness challenges due to uncontrolled scheduling, shared data access, and the need for coordination between threads.
+
+---
+
+## Final checklist before the exam
+- I can explain why threads are harder than processes
+- I understand race conditions and critical sections
+- I know why atomicity is required
+- I can explain why waiting is a concurrency problem
+- I understand why the OS is essential for concurrency
+
