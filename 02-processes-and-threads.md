@@ -1,5 +1,3 @@
-Chapter 4, 5, 26, 27, 
-
 ## 4 The Abstraction: The Process
 
 This section answers a very important question:
@@ -916,7 +914,7 @@ This pattern is fundamental to:
 ---
 ---
 
-# Concurrency: An Introduction
+# 26 Concurrency: An Introduction
 
 ### This section answers a fundamental question:
 #### What changes when a program has more than one point of execution?
