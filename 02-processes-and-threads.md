@@ -1496,3 +1496,616 @@ Concurrency introduces nondeterminism and correctness challenges due to uncontro
 - I can explain why waiting is a concurrency problem
 - I understand why the OS is essential for concurrency
 
+---
+---
+
+## 27.1 Thread Creation
+
+This section explains how new threads are created and what information is required to start a thread.
+
+---
+
+## Purpose of thread creation
+- Threads allow multiple execution flows within the same process
+- Creating a thread starts a new concurrent execution context
+- Threads share the same address space but execute independently
+
+---
+
+## What creating a thread means
+When a thread is created:
+- a new execution context is created
+- the thread has its own:
+  - program counter
+  - registers
+  - stack
+- the thread shares:
+  - code
+  - heap
+  - global variables
+with other threads in the process
+
+---
+
+## Conceptual view of `pthread_create()`
+
+Thread creation requires four pieces of information:
+
+### Thread handle
+- Used to identify the thread
+- Allows later interaction with the thread (e.g., waiting for it)
+
+### Attributes
+- Specify optional properties of the thread
+- Examples include stack size or scheduling priority
+- Usually defaults are sufficient and no attributes are specified
+
+### Start routine
+- Specifies the function the thread will execute
+- This function is the entry point of the thread
+- It runs concurrently with other threads
+
+### Argument
+- A single argument passed to the thread function
+- Allows data to be provided at thread start
+
+---
+
+## Use of `void *`
+- Arguments and return values use `void *`
+- This allows passing values of any type
+- Threads cast the argument to the expected type internally
+
+---
+
+## Scheduling behavior
+- A thread may start running immediately after creation
+- Or it may be delayed and run later
+- Execution order is determined by the scheduler
+- Creation order does not imply execution order
+
+---
+
+## Key takeaway
+Thread creation starts a new independent execution flow inside a process, sharing memory but running with its own stack and execution state.
+
+---
+---
+
+## 27.1 Thread Creation
+#### This section explains how new threads are created and what information is required to start a thread.
+
+---
+
+## Purpose of thread creation
+- Threads allow multiple execution flows within the same process
+- Creating a thread starts a new concurrent execution context
+- Threads share the same address space but execute independently
+
+---
+
+## What creating a thread means
+When a thread is created:
+- a new execution context is created
+- the thread has its own:
+  - program counter
+  - registers
+  - stack
+- the thread shares:
+  - code
+  - heap
+  - global variables
+with other threads in the process
+
+---
+
+## Conceptual view of `pthread_create()`
+
+Thread creation requires four pieces of information:
+
+### Thread handle
+- Used to identify the thread
+- Allows later interaction with the thread (e.g., waiting for it)
+
+### Attributes
+- Specify optional properties of the thread
+- Examples include stack size or scheduling priority
+- Usually defaults are sufficient and no attributes are specified
+
+### Start routine
+- Specifies the function the thread will execute
+- This function is the entry point of the thread
+- It runs concurrently with other threads
+
+### Argument
+- A single argument passed to the thread function
+- Allows data to be provided at thread start
+
+---
+
+## Use of `void *`
+- Arguments and return values use `void *`
+- This allows passing values of any type
+- Threads cast the argument to the expected type internally
+
+---
+
+## Scheduling behavior
+- A thread may start running immediately after creation
+- Or it may be delayed and run later
+- Execution order is determined by the scheduler
+- Creation order does not imply execution order
+
+---
+
+## Key takeaway
+Thread creation starts a new independent execution flow inside a process, sharing memory but running with its own stack and execution state.
+
+---
+---
+
+## 27.2 Thread Completion
+
+This section explains how one thread can wait for another thread to finish execution.
+
+---
+
+## Why thread completion is needed
+- Threads run independently once created
+- The main thread does not automatically wait for other threads
+- If the main thread exits, the entire process terminates
+- Threads must be explicitly waited for to ensure correct execution
+
+---
+
+## `pthread_join()`
+- `pthread_join()` allows one thread to wait for another thread
+- The calling thread blocks until the target thread finishes
+- This is the thread equivalent of `wait()` for processes
+
+---
+
+## Arguments to `pthread_join()`
+
+### Thread identifier
+- Specifies which thread to wait for
+- The identifier is obtained during thread creation
+- Allows waiting for a specific thread
+
+### Return value pointer (optional)
+- Threads can return a value when they finish
+- The return value type is `void *`
+- If the caller does not care about the return value, `NULL` can be passed
+
+---
+
+## Thread return values
+- Threads return values using `void *`
+- This allows returning any type of data
+- Common pattern:
+  - thread allocates memory
+  - stores results in it
+  - returns a pointer to the data
+  - joining thread retrieves the pointer
+
+---
+
+## Blocking behavior
+- The calling thread enters a blocked state
+- No CPU is consumed while waiting
+- The thread resumes when the target thread exits
+
+---
+
+## Relationship to process waiting
+- `pthread_join()` is analogous to `wait()`
+- Both:
+  - block the caller
+  - wait for completion
+  - enable cleanup of execution state
+
+---
+
+## Key takeaway
+`pthread_join()` allows a thread to block until another thread finishes, ensuring correct program completion and optional retrieval of results.
+
+---
+---
+
+## 27.3 Locks (Conceptual Overview)
+
+### This section introduces the basic mechanism used to enforce mutual exclusion in concurrent programs.
+
+---
+
+## Purpose of locks
+- Locks are used to protect **critical sections**
+- They ensure that **only one thread at a time** executes code that accesses shared data
+- Locks prevent race conditions caused by concurrent access
+
+---
+
+## Mutual exclusion
+- Mutual exclusion means that if one thread is executing a critical section:
+  - no other thread may enter it
+- Locks are the standard mechanism used to guarantee mutual exclusion
+
+---
+
+## Basic lock behavior
+- A thread requests a lock before entering a critical section
+- If the lock is free:
+  - the thread acquires the lock and proceeds
+- If the lock is held:
+  - the thread waits until the lock is released
+- After leaving the critical section:
+  - the thread releases the lock
+
+---
+
+## What locks protect
+- Shared variables
+- Shared data structures
+- Shared resources
+
+Locks are not needed for:
+- thread-local data
+- private stack variables
+
+---
+
+## Relationship to earlier concepts
+- Locks solve the problems identified in Chapter 26
+- They prevent uncontrolled scheduling from corrupting shared data
+- They restore deterministic behavior to concurrent programs
+
+---
+
+## Important notes
+- Locks must be properly initialized before use
+- Errors in lock usage can lead to incorrect behavior
+- Correct use of locks is essential for program correctness
+
+---
+
+## Scope reminder
+- This section introduces locks at a high level
+- Detailed lock implementations and variants are studied later
+- For now, focus on why locks exist, not how they are implemented
+
+---
+
+## Key takeaway
+Locks enforce mutual exclusion by ensuring that only one thread at a time executes a critical section, preventing race conditions.
+
+---
+---
+
+## Condition Variables — Explanation
+
+Condition variables are used to coordinate execution between threads when one thread must wait for another thread to make progress before it can continue.
+
+Locks alone are not sufficient for this purpose. Locks prevent multiple threads from entering a critical section at the same time, but they do not provide a way for one thread to sleep until a specific condition becomes true.
+
+---
+
+## What problem condition variables solve
+
+Condition variables are needed when:
+- a thread cannot continue yet
+- it must wait until some condition becomes true
+- another thread is responsible for making that condition true
+
+Common examples include:
+- waiting for data to be produced
+- waiting for I/O to complete
+- waiting for a buffer to become non-empty
+- waiting for another thread to finish a step
+
+Using busy-waiting (spinning) wastes CPU time and leads to poor performance and bugs. Condition variables allow threads to sleep efficiently instead.
+
+---
+
+## Core idea
+
+A condition variable supports sleep–wake coordination between threads.
+
+There are two roles:
+- a waiting thread that sleeps until the condition becomes true
+- a signaling thread that wakes waiting threads when the condition changes
+
+Locks control *who* enters a critical section.  
+Condition variables control *when* a thread is allowed to proceed.
+
+---
+
+## Relationship between condition variables and locks
+
+Condition variables are never used alone.  
+They are always associated with a lock (mutex).
+
+The lock is required because:
+- the condition depends on shared data
+- shared data must be protected from race conditions
+- checking the condition and going to sleep must be atomic
+
+The lock protects:
+- checking the condition
+- modifying the condition
+- signaling the condition
+
+---
+
+## How waiting works
+
+Typical waiting sequence:
+1. Acquire the lock
+2. Check the condition
+3. If the condition is false, call `pthread_cond_wait`
+4. The thread releases the lock and goes to sleep
+5. When woken, it re-acquires the lock
+6. The thread re-checks the condition
+7. If the condition is true, it continues
+8. Release the lock
+
+---
+
+## Why the condition is checked in a while-loop
+
+The condition must be checked in a `while` loop instead of an `if` statement because:
+- threads can wake up spuriously
+- multiple threads may be waiting
+- another thread may consume the condition first
+
+Waking up does not guarantee the condition is true.  
+It only means that something *might* have changed.
+
+---
+
+## How signaling works
+
+The signaling thread:
+1. Acquires the same lock
+2. Modifies shared state
+3. Signals the condition variable
+4. Releases the lock
+
+Signaling does not transfer execution directly.  
+It only wakes sleeping threads, which must then compete to acquire the lock.
+
+---
+
+## Relationship to earlier concurrency concepts
+
+Condition variables build on:
+- shared memory
+- race conditions
+- critical sections
+- locks
+
+They solve a different problem than locks:
+- locks provide mutual exclusion
+- condition variables provide ordering and waiting
+
+They are almost always used together.
+
+---
+
+## Exam definition
+
+A condition variable is a synchronization primitive that allows a thread to sleep until a specific condition becomes true and be safely woken by another thread, always in coordination with a lock.
+
+---
+---
+
+## 27.5 Compiling and Running
+
+This section explains how to correctly compile and run programs that use POSIX threads.
+
+---
+
+## Required header
+
+Any program that uses threads must include the pthread header: #include <pthread.h>
+
+This header provides:
+- thread types (`pthread_t`)
+- thread creation and control routines
+- synchronization primitives such as locks and condition variables
+
+---
+
+## Required compiler flag
+
+When compiling a threaded program, the pthread library must be explicitly linked using the `-pthread` flag.
+
+Example compilation command: gcc -o main main.c -Wall -pthread
+
+The `-pthread` flag:
+- links the pthread library
+- enables correct thread-related behavior in the compiler and runtime
+
+Without this flag, the program may fail to link or behave incorrectly.
+
+---
+
+## Important note
+
+Successfully compiling a threaded program does **not** mean it is correct.
+
+Concurrency bugs such as race conditions may still exist even when:
+- the program compiles successfully
+- the program runs without crashing
+
+---
+
+## Exam takeaway
+
+- `#include <pthread.h>` is required for threaded programs
+- `-pthread` must be used during compilation
+- compilation success does not guarantee correct concurrent behavior
+
+---
+---
+
+# Chapter 27 — Thread API (Exam Summary)
+
+This chapter introduces the POSIX thread API and explains how threads are created, controlled, synchronized, and coordinated. It provides the practical tools needed to solve the concurrency problems introduced in Chapter 26.
+
+---
+
+## Purpose of this chapter
+
+Chapter 26 explains why concurrency is difficult:
+- race conditions
+- indeterminacy
+- shared data corruption
+
+Chapter 27 explains how programmers control concurrency using:
+- thread creation
+- thread completion
+- locks
+- condition variables
+
+---
+
+## Threads vs processes
+
+A thread:
+- is a unit of execution within a process
+- shares the same address space as other threads
+- has its own registers and stack
+
+Threads:
+- are cheaper than processes
+- enable parallel execution within a program
+- introduce shared-memory concurrency problems
+
+---
+
+## 27.1 Thread Creation
+
+Threads are created using `pthread_create()`.
+
+Key points:
+- creating a thread is similar to calling a function
+- the function runs concurrently
+- scheduling is controlled by the OS
+- execution order is not deterministic
+
+Important details:
+- threads start at a function pointer
+- arguments and return values use `void *`
+- threads may begin execution immediately or later
+
+Exam focus:
+- execution order cannot be assumed
+- threads run independently once created
+
+---
+
+## 27.2 Thread Completion
+
+Threads do not automatically synchronize with each other.
+
+To wait for a thread to finish:
+- use `pthread_join()`
+
+Key points:
+- `pthread_join()` blocks until the thread completes
+- return values can be retrieved
+- joining prevents lost results and zombies
+
+Exam focus:
+- thread creation does not imply thread completion
+- joining is explicit and required
+
+---
+
+## 27.3 Locks (Mutexes)
+
+Locks provide mutual exclusion for critical sections.
+
+Purpose:
+- protect shared data
+- prevent race conditions
+
+Key points:
+- only one thread may hold a lock at a time
+- other threads block until the lock is released
+- lock/unlock must be paired
+
+Important rules:
+- locks must be initialized before use
+- incorrect usage leads to bugs or deadlock
+
+Exam focus:
+- locks enforce mutual exclusion
+- locks alone do not handle waiting
+
+---
+
+## 27.4 Condition Variables
+
+Condition variables coordinate waiting between threads.
+
+They are used when:
+- a thread must wait for a condition to become true
+- mutual exclusion alone is insufficient
+
+Key ideas:
+- always used with a lock
+- waiting threads sleep efficiently
+- signaling wakes waiting threads
+
+Important details:
+- conditions are checked in a `while` loop
+- waking up does not guarantee the condition is true
+- signaling is a hint, not a transfer of control
+
+Exam focus:
+- condition variables avoid busy waiting
+- condition variables provide sleep/wakeup coordination
+
+---
+
+## 27.5 Compiling and Running
+
+Threaded programs require explicit compiler support.
+
+Requirements:
+- include `<pthread.h>`
+- compile with `-pthread`
+
+Example: gcc -o main main.c -Wall -pthread
+
+Important note:
+- successful compilation does not guarantee correctness
+- concurrency bugs occur at runtime
+
+Exam focus:
+- `-pthread` is mandatory
+- compilation success ≠ correct concurrency
+
+---
+
+## Big picture
+
+Conceptual flow:
+
+Threads → Shared memory → Race conditions
+Locks → Mutual exclusion
+Condition variables → Waiting and coordination
+
+---
+
+## One-sentence exam summary
+
+The POSIX thread API provides mechanisms to create, synchronize, and coordinate threads using joins, locks, and condition variables to safely control concurrent execution.
+
+
+
+
+
+
+
