@@ -855,5 +855,765 @@ The next chapter introduces the **Multi-Level Feedback Queue (MLFQ)**:
 - Oracle assumption
 - Trade-off between fairness and performance
 
+---
+---
+
+# Chapter 8 — Scheduling: The Multi-Level Feedback Queue (MLFQ)
+
+## Big Picture
+
+So far, we have seen a fundamental tension in CPU scheduling:
+
+- **SJF / STCF**
+  - Excellent turnaround time
+  - Requires knowing job length in advance (an oracle)
+  - Poor response time for interactive workloads
+
+- **Round Robin (RR)**
+  - Good response time
+  - Fair to all jobs
+  - Poor turnaround time, especially for long jobs
+
+In a real operating system, the scheduler **does not know job lengths ahead of time**, yet it must still provide:
+- Good **turnaround time** for batch jobs
+- Good **response time** for interactive jobs
+
+This is the problem that **Multi-Level Feedback Queue (MLFQ)** is designed to solve.
+
+---
+
+## What Is MLFQ?
+
+The **Multi-Level Feedback Queue (MLFQ)** is a scheduling approach that:
+
+- Uses **multiple priority queues**
+- Allows jobs to **move between queues**
+- Adjusts priorities based on **observed behavior**
+- Learns from the **recent past** to make better future decisions
+
+Instead of relying on perfect knowledge of job length, MLFQ **infers behavior dynamically**.
+
+---
+
+## Core Goals of MLFQ
+
+MLFQ explicitly targets two competing goals:
+
+### 1. Minimize Turnaround Time
+- Favor short jobs
+- Avoid long jobs blocking short ones
+- Similar to SJF/STCF, but without knowing job length
+
+### 2. Minimize Response Time
+- Ensure interactive jobs run quickly
+- Avoid long waits before first execution
+- Similar to Round Robin
+
+MLFQ attempts to achieve **both goals simultaneously**.
+
+---
+
+## How MLFQ “Learns”
+
+MLFQ does not ask:
+> “How long will this job run?”
+
+Instead, it observes:
+> “How has this job behaved recently?”
+
+Typical interpretations:
+- Jobs that **use the CPU for long periods** → likely CPU-bound → lower priority
+- Jobs that **frequently block for I/O** → likely interactive → higher priority
+
+This adaptive behavior is why it is called **feedback**.
+
+---
+
+## Historical Context
+
+- First described in **1962** in the CTSS system
+- Influenced later systems such as **Multics**
+- Earned Fernando Corbató the **Turing Award**
+- Forms the conceptual basis for many modern schedulers
+
+MLFQ is not just theoretical — it reflects **real OS design principles**.
+
+---
+
+## The Central Question (The Crux)
+
+> **How can we schedule well without perfect knowledge of job length?**
+
+More precisely:
+- How can a scheduler minimize **response time** for interactive jobs
+- While also minimizing **turnaround time** for batch jobs
+- **Without a priori knowledge** of how long jobs will run?
+
+MLFQ is the operating system’s answer to this question.
+
+---
+
+## Key Exam Sentence (Memorize This)
+
+> **MLFQ approximates SJF/STCF using past behavior, while preserving good response time like Round Robin.**
+
+If you can explain this sentence clearly, you understand the core idea of MLFQ.
+
+---
+---
+
+# Chapter 8 – Scheduling: The Multi-Level Feedback Queue (MLFQ)
+## Section 8.1: Basic Rules
+
+---
+
+## Why MLFQ?
+
+From earlier scheduling policies:
+
+- **SJF / STCF**
+  - Optimizes **turnaround time**
+  - Requires knowing job length in advance (unrealistic)
+
+- **Round Robin**
+  - Optimizes **response time**
+  - Performs poorly for turnaround time
+
+**MLFQ** is designed to:
+- Achieve good **response time** for interactive jobs
+- Achieve good **turnaround time** for CPU-bound jobs
+- Work **without knowing job lengths ahead of time**
+
+---
+
+## Core Idea of MLFQ
+
+MLFQ schedules jobs using:
+- **Multiple queues**
+- Each queue has a **different priority level**
+
+Instead of assigning fixed priorities:
+- MLFQ **changes job priority dynamically**
+- Decisions are based on **observed behavior**
+
+The scheduler:
+- Learns from the *past behavior* of a job
+- Uses that information to predict *future behavior*
+
+---
+
+## Structure of MLFQ
+
+- There are multiple queues: `Q1, Q2, Q3, ...`
+- Each queue represents a **priority level**
+  - Higher queue → higher priority
+- At any given time:
+  - A job is in **exactly one queue**
+- The scheduler:
+  - Always selects a job from the **highest-priority non-empty queue**
+
+### Scheduling within a queue
+- If multiple jobs share the same priority:
+  - They are scheduled using **Round Robin**
+
+---
+
+## Behavior-Based Priority Adjustment
+
+MLFQ adjusts priorities based on how jobs behave while running.
+
+### Interactive (I/O-bound) jobs
+- Run briefly
+- Frequently block for I/O (keyboard, disk, network)
+- Interpretation:
+  - Job needs fast response
+- Result:
+  - **Priority remains high**
+
+### CPU-bound jobs
+- Run for long periods without yielding
+- Interpretation:
+  - Job does not need immediate response
+- Result:
+  - **Priority is reduced over time**
+
+This allows MLFQ to distinguish between:
+- Interactive jobs
+- CPU-intensive jobs
+
+---
+
+## The Two Fundamental MLFQ Rules
+
+These rules are essential and should be memorized.
+
+### Rule 1
+**If Priority(A) > Priority(B), A runs (B does not).**
+
+- Higher-priority jobs always preempt lower-priority jobs.
+
+### Rule 2
+**If Priority(A) = Priority(B), A and B run in Round Robin.**
+
+- Jobs at the same priority level share the CPU fairly.
+
+---
+
+## Understanding the MLFQ Queue Example (Figure 8.1)
+
+- Jobs **A** and **B**
+  - Located in the highest-priority queue
+  - Alternate using Round Robin
+- Job **C**
+  - Located in a middle-priority queue
+- Job **D**
+  - Located in the lowest-priority queue
+
+As long as A or B are runnable:
+- C and D **do not execute**
+
+This highlights a key issue:
+- **Starvation** of lower-priority jobs
+
+(The book introduces this problem intentionally; later sections address it.)
+
+---
+
+## Key Exam Takeaways
+
+- MLFQ uses **multiple priority queues**
+- Job priority is **dynamic**
+- Priority depends on **observed CPU vs I/O behavior**
+- High priority → better response time
+- Low priority → CPU-bound behavior
+- Scheduling rules:
+  - Higher priority always wins
+  - Same priority → Round Robin
+
+---
+The maximum amount of CPU time the scheduler allows a job to run before it is preempted.
+---
+
+## 8.2 — Attempt #1: How to Change Priority (MLFQ)
+
+### Big Picture
+
+The goal of **MLFQ** is to behave like **SJF / STCF** *without knowing job lengths in advance*.
+
+The operating system does **not** know:
+- how long a job will run
+- whether a job is interactive or CPU-bound
+
+So MLFQ:
+- **starts by guessing**
+- then **adjusts priority based on observed behavior**
+
+This section introduces the **first concrete rules** for changing priority over time.
+
+---
+
+## Core Idea
+
+> Treat every new job as if it *might* be short and interactive.  
+> Reward jobs that give up the CPU quickly.  
+> Penalize jobs that consume long uninterrupted CPU bursts.
+
+This is how MLFQ **learns from history**.
+
+---
+
+## Priority Adjustment Rules
+
+### Rule 3 — Entry Rule
+
+When a job enters the system:
+- It is placed at the **highest priority queue**
+
+**Reasoning:**
+- Short or interactive jobs should run immediately
+- This improves **response time**
+
+---
+
+### Rule 4a — CPU-Bound Penalty
+
+If a job:
+- **uses its entire time slice** while running
+
+Then:
+- Its priority is **reduced**
+- The job moves **down one queue**
+
+**Interpretation:**
+- The job appears CPU-bound
+- It does not require fast response
+- It should be treated more like a batch job
+
+---
+
+### Rule 4b — I/O-Friendly Reward
+
+If a job:
+- **gives up the CPU before the it is expires** (time slice means the maximum amount of CPU time the scheduler allows a job to run before it is preempted.) 
+
+- (e.g., blocks for I/O or user input)
+
+Then:
+- Its priority **stays the same**
+
+**Interpretation:**
+- The job appears interactive
+- It should not be penalized
+- Response time should remain low
+
+---
+
+## Example 1: A Single Long-Running Job
+
+Behavior:
+1. Job enters at highest priority
+2. Uses full time slice → priority decreases
+3. Repeats this behavior
+4. Eventually reaches the lowest priority queue
+5. Remains there
+
+**Result:**
+- CPU-bound jobs are gradually deprioritized
+- Interactive jobs remain responsive
+
+---
+
+## Example 2: A Short Interactive Job Arrives Later
+
+Scenario:
+- Job A: long-running CPU-bound job
+- Job B: short interactive job arrives later
+
+What happens:
+1. Job B enters at highest priority
+2. Scheduler immediately runs B
+3. Job B finishes quickly
+4. Job A resumes afterward
+
+**Result:**
+- Short jobs finish quickly
+- MLFQ approximates SJF behavior
+
+---
+
+## Example 3: I/O-Intensive Interactive Job
+
+Job behavior:
+- Uses CPU briefly
+- Frequently blocks for I/O
+
+MLFQ response:
+- Job never uses a full time slice
+- Priority never decreases
+- Job stays in high-priority queues
+
+**Result:**
+- Interactive jobs remain responsive
+- CPU-bound jobs do not dominate the CPU
+
+---
+
+## What MLFQ Achieves So Far
+
+This first attempt:
+- Approximates **Shortest Job First**
+- Provides fast **response time**
+- Prevents CPU-bound jobs from blocking others
+
+---
+
+## Problems With This Approach (Important for Exams)
+
+Despite its strengths, this design has flaws:
+
+1. **Starvation**
+   - Too many interactive jobs can prevent long jobs from running
+
+2. **Scheduler Gaming**
+   - A job can yield just before the time slice ends
+   - Remain at high priority indefinitely
+
+3. **Phase Changes**
+   - Jobs may shift between CPU-bound and interactive
+   - Current rules do not adapt well
+
+These issues motivate:
+- **Priority Boost (Section 8.3)**
+- **Better Accounting (Section 8.4)**
+
+---
+
+## Exam-Ready Summary Sentence
+
+> MLFQ initially treats all jobs as short and interactive, then dynamically lowers priority for CPU-bound behavior and preserves priority for I/O-bound behavior in order to approximate SJF without knowing job lengths.
+
+---
+---
+
+## 8.3 Attempt #2: The Priority Boost — Explanation
+
+### The problem we are fixing: starvation
+
+With the first MLFQ attempt (Rules 3, 4a, 4b), a serious problem appears:
+
+- If there are many **interactive jobs**, they keep high priority.
+- **CPU-bound (long-running) jobs** keep getting pushed down to lower queues.
+- As a result, long-running jobs may **never get CPU time**.
+
+This situation is called **starvation**.
+
+---
+
+### Core idea: Priority Boost
+
+To solve starvation, MLFQ introduces a **priority boost**.
+
+The idea is simple:
+
+> Periodically reset the priorities of *all* jobs by moving them to the highest-priority queue.
+
+This gives every job a fresh chance to run at high priority.
+
+---
+
+### Rule 5 (Priority Boost)
+
+**Rule 5:**  
+After some fixed time period **S**, move *all* jobs in the system to the topmost queue.
+
+This rule applies regardless of:
+- Current priority
+- Past behavior
+- Whether the job is CPU-bound or interactive
+
+---
+
+### What problems does the priority boost solve?
+
+#### 1. Starvation
+- CPU-bound jobs are guaranteed to eventually run.
+- No job can remain forever at the lowest priority level.
+
+#### 2. Changing behavior over time
+- A job may change its nature:
+  - CPU-bound → interactive
+  - Interactive → CPU-bound
+- After a boost, the scheduler can **re-evaluate** the job’s behavior.
+- Jobs are not permanently penalized for past behavior.
+
+---
+
+### Intuition
+
+MLFQ initially *assumes* every job might be interactive:
+- If a job behaves interactively, it stays at high priority.
+- If it behaves like a long-running job, it slowly moves down.
+
+The priority boost acts like a **reset button**, ensuring fairness.
+
+---
+
+### The downside: choosing S
+
+The boost interval **S** is difficult to tune:
+
+- **S too large**
+  - CPU-bound jobs may still starve for a long time
+- **S too small**
+  - Interactive jobs lose their advantage
+  - Scheduling becomes less effective
+
+Because of this, the book refers to **S** as a *“voodoo constant”*:
+- It works
+- But choosing the correct value is hard and system-dependent
+
+---
+
+### Exam-ready takeaway
+
+- **Problem:** Starvation in MLFQ
+- **Solution:** Periodic priority boost
+- **Rule:** After time S, move all jobs to the top queue
+- **Benefits:** Prevents starvation, adapts to behavior changes
+- **Limitation:** Choosing S is non-trivial
+
+---
+---
+
+## 8.4 Attempt #3: Better Accounting (MLFQ)
+
+### The Problem: Gaming the Scheduler
+
+In the previous version of MLFQ (Attempt #1), priority was adjusted based on **how** a job used the CPU:
+
+- If a job used the **entire time slice** → its priority was lowered  
+- If a job **gave up the CPU early** (e.g., due to I/O) → it kept the same priority  
+
+While this helped interactive jobs, it introduced a serious flaw: **gaming the scheduler**.
+
+A job could intentionally:
+- Run for almost the entire time slice
+- Issue an I/O operation just before the slice ended
+- Appear “interactive” to the scheduler
+
+As a result, priority would **not** be reduced, allowing the job to stay at a high-priority queue and unfairly consume CPU time, potentially starving other jobs.
+
+---
+
+### Key Insight: Count CPU Time, Not Behavior
+
+The mistake was focusing on *how* the CPU was relinquished instead of *how much CPU time* was actually used.
+
+The fix is **better accounting**:
+- Track the **total CPU time used** by a job at each priority level
+- Ignore whether the CPU was released early or late
+- Base priority changes solely on accumulated CPU usage
+
+---
+
+### The Solution: Better Accounting in MLFQ
+
+Each priority level now has a **CPU time allotment**.
+
+- The scheduler keeps track of how much CPU time a job uses at its current level
+- Once the job exhausts its allotted CPU time:
+  - It is **demoted** to a lower-priority queue
+- This happens **regardless of I/O behavior**
+
+Whether the CPU time is used in:
+- One long burst  
+- Many short bursts  
+- Bursts interrupted by I/O  
+
+…the accounting is the same.
+
+---
+
+### Revised Rule (Critical for Exams)
+
+Old rules 4a and 4b are replaced by a single rule:
+
+**Rule 4:**  
+Once a job uses up its time allotment at a given priority level, its priority is reduced (it moves down one queue), regardless of how many times it relinquished the CPU.
+
+---
+
+### Why This Works
+
+Better accounting:
+- Prevents scheduler gaming
+- Preserves fairness
+- Still favors interactive jobs
+- Ensures CPU-bound jobs cannot dominate unfairly
+
+This refinement makes MLFQ practical and robust enough for real operating systems.
+
+---
+
+### Exam Keywords to Remember
+
+- Gaming the scheduler  
+- CPU time allotment  
+- Better accounting  
+- Priority demotion  
+- Interactive vs CPU-bound jobs  
+- MLFQ Rule 4
+
+---
+---
+
+## 8.5 Tuning MLFQ and Other Issues — Exam Notes
+
+At this stage, MLFQ already works conceptually, but a major **practical problem** remains:
+
+> How do we choose the right parameters?
+
+There is **no single perfect configuration** for MLFQ.
+
+---
+
+### Core tuning questions (VERY EXAM-RELEVANT)
+
+An MLFQ scheduler must decide:
+
+1. How many priority queues should exist?
+2. How long should the time slice be at each queue?
+3. How often should priorities be boosted?
+
+There is **no universal correct answer** — it depends on the workload.
+
+**Exam tip:**  
+If a question asks *why MLFQ is hard to design*, the answer is:
+- Parameter tuning
+- Dependence on workload behavior
+
+---
+
+### Different queues → different time slices
+
+Most MLFQ implementations **do not use the same time slice for all queues**.
+
+Typical design:
+
+- **High-priority queues**
+  - Short time slices (e.g., 5–10 ms)
+  - Intended for interactive jobs
+  - Improves response time
+
+- **Low-priority queues**
+  - Long time slices (e.g., 50–100 ms)
+  - Intended for CPU-bound jobs
+  - Reduces context-switch overhead
+
+**Rule of thumb (exam-friendly):**
+- Short jobs → short quanta  
+- Long jobs → long quanta
+
+---
+
+### Why tuning is difficult: Ousterhout’s Law
+
+This section introduces an important warning:
+
+**Ousterhout’s Law (Voodoo Constants)**
+
+Scheduler parameters often look like “magic numbers”  
+(e.g., boost every 50 ms, 100 ms, or 1 second).
+
+Problems:
+- Boost interval too large → starvation
+- Boost interval too small → too much overhead
+- Default values often remain unchanged → not optimal
+
+**Exam takeaway:**
+- MLFQ is powerful but sensitive to configuration
+- Poor tuning can ruin performance
+
+---
+
+### Real operating system implementations
+
+Different systems implement MLFQ differently:
+
+- **Solaris MLFQ**
+  - Uses configuration tables
+  - Tables define:
+    - Priority levels
+    - Time slice per level
+    - Boost frequency
+  - Administrator can tune values
+
+- **FreeBSD scheduler**
+  - Uses mathematical formulas
+  - Priority depends on:
+    - CPU usage
+    - Usage decay over time
+  - Avoids fixed tables
+
+**Exam insight:**
+> MLFQ is a scheduling concept, not a single fixed algorithm
+
+---
+
+### Additional features you may see in exam questions
+
+- Some priority levels are reserved for kernel work
+- User processes may never reach the highest priority
+- Tools like `nice` allow users to influence (not guarantee) priority
+
+---
+
+### One-sentence exam summary
+
+**MLFQ performance depends heavily on tuning (number of queues, time slices, and boost interval); while it adapts well to mixed workloads, poor parameter choices can lead to starvation, overhead, or unfairness.**
+
+---
+---
+
+## 8.6 MLFQ — Summary (Book + Exam Notes)
+
+### Book Summary (Condensed)
+
+We have described a scheduling approach known as the **Multi-Level Feedback Queue (MLFQ)**.  
+It is called *feedback* because it dynamically adjusts a job’s priority based on its **observed behavior over time**.
+
+MLFQ maintains **multiple priority queues** and uses execution history as its guide:
+- Jobs that behave like **short / interactive** jobs are favored
+- Jobs that behave like **long / CPU-bound** jobs are gradually deprioritized
+
+The refined set of MLFQ rules is:
+
+- **Rule 1:** If `Priority(A) > Priority(B)`, A runs (B does not).
+- **Rule 2:** If `Priority(A) = Priority(B)`, A and B run using Round Robin.
+- **Rule 3:** When a job enters the system, it is placed at the **highest priority** queue.
+- **Rule 4:** Once a job uses up its CPU allotment at a given level  
+  (regardless of how many times it yielded the CPU), its priority is **reduced**  
+  (it moves down one queue).
+- **Rule 5:** After some time period **S**, **all jobs are boosted** to the topmost queue.
+
+MLFQ is powerful because it **does not require a priori knowledge** of job length.  
+Instead, it **observes execution behavior** and prioritizes jobs accordingly.
+
+As a result, MLFQ:
+- Approximates **SJF / STCF** for short, interactive jobs
+- Preserves **fairness** and prevents starvation for long-running jobs
+
+For these reasons, many real systems (BSD UNIX, Solaris, Windows NT and successors) use
+a form of MLFQ as their **base scheduler**.
+
+---
+
+### Exam-Focused Summary (Added)
+
+**What problem does MLFQ solve?**
+
+MLFQ tries to solve **three competing goals at once**:
+
+1. **Low turnaround time** (like SJF/STCF)
+2. **Low response time** (like Round Robin)
+3. **No starvation** (fairness over time)
+
+But the OS **does not know job lengths**, so MLFQ:
+- Starts by *assuming* jobs are short
+- Learns behavior from CPU usage
+- Adjusts priorities dynamically
+
+---
+
+### Key Ideas to Memorize for the Exam
+
+- MLFQ is a **preemptive scheduler**
+- Priority is **dynamic**, not fixed
+- Short / interactive jobs:
+  - Use little CPU
+  - Stay at high priority
+- Long / CPU-bound jobs:
+  - Use full time slices
+  - Gradually sink to lower queues
+- **Priority boost** is essential to:
+  - Prevent starvation
+  - Handle phase changes in job behavior
+
+---
+
+### Common Exam Traps
+
+- ❌ MLFQ does **not** know job length in advance  
+- ❌ Yielding early does **not** guarantee high priority forever (Rule 4 fix)
+- ❌ Without priority boost, starvation **can occur**
+- ✅ MLFQ ≈ SJF + RR **without an oracle**
+
+---
+
+### One-Line Exam Definition
+
+> **MLFQ is a scheduling algorithm that uses multiple priority queues and feedback from past CPU usage to approximate optimal scheduling without knowing job lengths in advance.**
+
+
 
 
