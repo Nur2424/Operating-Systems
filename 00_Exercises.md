@@ -304,5 +304,268 @@ D. Increase page size
 Condition variables allow threads to sleep efficiently while waiting for a condition, avoiding CPU waste due to busy-waiting.
 
 ---
+---
+
+## Q1) Machine state (Ch. 4)
+
+Which of the following is **NOT** part of the machine state of a process?  
+A. Program counter  
+B. CPU registers  
+C. Page table / address space information  
+D. Contents of the disk buffer cache  
+
+**Answer: D**  
+The machine state includes only what is required to resume a process (PC, registers, address space). The disk buffer cache is global OS state, not per-process.
+
+---
+
+## Q2) Process abstraction (Ch. 4)
+
+The abstraction of a process mainly provides:  
+A. A way to share memory between applications  
+B. The illusion of a private CPU and private memory  
+C. Faster disk access  
+D. Automatic parallel execution  
+
+**Answer: B**  
+A process gives each program the illusion that it has exclusive control over the CPU and its own private memory.
+
+---
+
+## Q3) Context switch (Ch. 4)
+
+During a context switch, the operating system must:  
+A. Flush all CPU caches  
+B. Save the current process’s execution state  
+C. Terminate the running process  
+D. Reload the program from disk  
+
+**Answer: B**  
+The OS saves registers, program counter, and related state so the process can resume execution later.
+
+---
+
+## Q4) Process states (Ch. 4)
+
+Which transition is caused by an **I/O completion interrupt**?  
+A. Running → Ready  
+B. Ready → Running  
+C. Blocked → Ready  
+D. Running → Blocked  
+
+**Answer: C**  
+When I/O completes, a blocked process becomes ready to run again.
+
+---
+
+## Q5) fork() behavior (Ch. 5)
+
+Immediately after `fork()`:  
+A. Only the parent continues execution  
+B. Only the child continues execution  
+C. Both parent and child continue execution from the same point  
+D. The parent blocks until the child exits  
+
+**Answer: C**  
+Both parent and child resume execution from the instruction following `fork()`.
+
+---
+
+## Q6) fork() and address space (Ch. 5)
+
+After `fork()`, parent and child:  
+A. Share the same stack  
+B. Share the same heap  
+C. Have separate virtual address spaces with identical contents  
+D. Execute different programs  
+
+**Answer: C**  
+Each process has its own virtual address space, initially containing identical data (copy-on-write).
+
+---
+
+## Q7) exec() effect (Ch. 5)
+
+Which resource is **replaced** by a successful `exec()`?  
+A. PID  
+B. Open file descriptors  
+C. Address space  
+D. Parent–child relationship  
+
+**Answer: C**  
+`exec()` replaces the entire address space while keeping the same PID.
+
+---
+
+## Q8) wait() semantics (Ch. 5)
+
+If a process has no children and calls `wait()`:  
+A. It blocks forever  
+B. It immediately returns with an error  
+C. It becomes a zombie  
+D. It creates a child process  
+
+**Answer: B**  
+Calling `wait()` when no children exist causes an immediate error return.
+
+---
+
+## Q9) Zombie processes (Ch. 5)
+
+Zombie processes exist to:  
+A. Save CPU state for later execution  
+B. Allow the parent to collect the child’s exit status  
+C. Speed up future process creation  
+D. Store swapped-out memory pages  
+
+**Answer: B**  
+The zombie retains exit information so the parent can retrieve it using `wait()`.
+
+---
+
+## Q10) Threads vs processes (Ch. 26)
+
+Compared to processes, threads are:  
+A. More isolated  
+B. More expensive to create  
+C. Lighter-weight execution units  
+D. Always scheduled together  
+
+**Answer: C**  
+Threads are lighter-weight because they share address space and system resources.
+
+---
+
+## Q11) Thread machine state (Ch. 26)
+
+Each thread has its own:  
+A. Heap  
+B. Address space  
+C. Stack  
+D. Global variables  
+
+**Answer: C**  
+Threads share address space but each thread has its own stack (stack" refers to a dedicated region of memory that stores the history of what a thread is currently doing). 
+
+---
+
+## Q12) Thread context switch (Ch. 26)
+
+When switching between two threads of the same process:  
+A. The address space must be changed  
+B. Only registers and stack pointer need to be switched  
+C. The process must be terminated  
+D. The program must be reloaded  
+
+**Answer: B**  
+Threads of the same process share the address space, so only thread-specific state is switched.
+
+---
+
+## Q13) Race condition (Ch. 26)
+
+A race condition can occur when:  
+A. Two threads read the same variable  
+B. Two threads write the same variable concurrently  
+C. Threads execute on different CPUs only  
+D. The scheduler is non-preemptive  
+
+**Answer: B**  
+A race condition requires shared data and at least one write, with outcome depending on execution order.
+
+---
+
+## Q14) Atomicity (Ch. 26)
+
+An atomic operation is one that:  
+A. Can be interrupted safely at any point  
+B. Executes entirely or not at all  
+C. Requires disabling interrupts always  
+D. Is implemented only in software  
+
+**Answer: B**  
+Atomic operations appear indivisible to other threads.
+
+---
+
+## Q15) Critical section (Ch. 26)
+
+The main goal of protecting a critical section is to:  
+A. Improve cache locality  
+B. Prevent deadlock  
+C. Avoid race conditions  
+D. Reduce context switch overhead  
+
+**Answer: C**  
+Critical sections are protected to prevent race conditions on shared data.
+
+---
+
+## Q16) Mutual exclusion (Ch. 26)
+
+Mutual exclusion ensures that:  
+A. Threads execute in parallel  
+B. Only one thread accesses shared data at a time  
+C. Threads never block  
+D. Scheduling becomes deterministic  
+
+**Answer: B**  
+Mutual exclusion guarantees exclusive access to shared data.
+
+---
+
+## Q17) pthread_create (Ch. 27)
+
+Creating a thread using `pthread_create()` requires specifying:  
+A. A new address space  
+B. A start routine (function)  
+C. A new PID  
+D. A page table  
+
+**Answer: B**  
+Threads execute a specified start routine within the same address space.
+
+---
+
+## Q18) Thread completion (Ch. 27)
+
+If the main thread exits before other threads finish:  
+A. Other threads continue running  
+B. Only kernel threads are terminated  
+C. The entire process terminates  
+D. The threads become zombies  
+
+**Answer: C**  
+Exiting the main thread terminates the entire process and all its threads.
+
+---
+
+## Q19) pthread_join (Ch. 27)
+
+`pthread_join()` is used to:  
+A. Create a new thread  
+B. Block until a thread finishes  
+C. Put a thread to sleep  
+D. Wake up waiting threads  
+
+**Answer: B**  
+`pthread_join()` blocks the caller until the specified thread terminates.
+
+---
+
+## Q20) Condition variables (Ch. 27)
+
+Condition variables are mainly used to:  
+A. Protect shared data  
+B. Enforce mutual exclusion  
+C. Coordinate waiting and signaling between threads  
+D. Replace locks  
+
+**Answer: C**  
+Condition variables allow threads to sleep and be signaled when a condition becomes true.
+
+
+
+
 
 
