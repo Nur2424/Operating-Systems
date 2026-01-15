@@ -827,3 +827,4 @@ a. The reference bit is left to 1 and the heuristic moves to the next item of th
 b. The reference bit is set to 0 and the heuristic moves to the next item of the list
 c. The reference bit is set to 0 and the frame is replaced with the page that caused the page fault
 d. The reference bit is left to 1 and the frame is replaced with the page that caused the page fault
+
