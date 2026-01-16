@@ -1615,5 +1615,456 @@ But the OS **does not know job lengths**, so MLFQ:
 > **MLFQ is a scheduling algorithm that uses multiple priority queues and feedback from past CPU usage to approximate optimal scheduling without knowing job lengths in advance.**
 
 
+---
+---
+
+# Scheduling: Proportional Share (Chapter 9)
+
+## Big Idea
+
+Previous scheduling policies focused on **performance metrics**, such as:
+- **Turnaround time** (e.g., SJF, STCF)
+- **Response time** (e.g., Round Robin, MLFQ)
+
+**Proportional-share scheduling** takes a different approach.
+
+Instead of asking:
+- *Who should finish first?*
+- *Who should respond fastest?*
+
+It asks:
+> **How much CPU time should each job receive?**
+
+---
+
+## What Is Proportional-Share Scheduling?
+
+A **proportional-share (fair-share) scheduler** aims to guarantee that each job receives a **fixed fraction of the CPU over time**.
+
+Example:
+- Job A → 50% of CPU
+- Job B → 30% of CPU
+- Job C → 20% of CPU
+
+The scheduler does **not** directly optimize turnaround time or response time.  
+It ensures that, **over time**, CPU usage matches the specified proportions.
+
+This is why it is often called a **fair-share scheduler**.
+
+---
+
+## How It Differs from Other Schedulers
+
+| Scheduler | Primary Goal |
+|---------|--------------|
+| FIFO | Simplicity |
+| SJF / STCF | Minimize turnaround time |
+| Round Robin | Minimize response time |
+| MLFQ | Balance turnaround & response |
+| **Proportional Share** | **Fair CPU allocation** |
+
+**Key exam point:**  
+Proportional-share scheduling does *not* try to minimize turnaround or response time.
+
+---
+
+## Lottery Scheduling (Core Mechanism)
+
+A well-known implementation of proportional-share scheduling is **lottery scheduling**.
+
+### Basic Idea
+- Each process is assigned a number of **tickets**
+- Periodically, the scheduler:
+  1. Draws a random ticket
+  2. Schedules the process that owns that ticket
+
+**More tickets ⇒ higher chance to run**
+
+Example:
+- Process A: 100 tickets
+- Process B: 50 tickets
+
+Expected CPU share:
+- A ≈ 66%
+- B ≈ 33%
+
+Over time, CPU allocation converges to the ticket ratio.
+
+---
+
+## Why Randomness Is Acceptable
+
+Lottery scheduling:
+- Does **not** require knowing job lengths
+- Does **not** predict the future
+- Uses probability to approximate fairness
+
+Short-term behavior may vary, but long-term CPU share is accurate.
+
+This makes the approach:
+- Simple
+- Flexible
+- Robust
+
+---
+
+## When Proportional-Share Scheduling Is Useful
+
+Common use cases:
+- Multi-user systems
+- Virtual machines
+- Containers
+- Server environments with CPU guarantees
+
+It answers questions like:
+> *User X should receive twice as much CPU as User Y.*
+
+---
+
+## The Core Question (Crux)
+
+> **How can we share the CPU proportionally without knowing job lengths in advance?**
+
+This chapter explains:
+- How tickets represent CPU share
+- How proportional fairness is enforced
+- Why deterministic scheduling is unnecessary
+- Which mechanisms make proportional sharing effective
+
+---
+
+## Exam-Ready Summary
+
+**Proportional-share scheduling guarantees each job a fraction of CPU time instead of optimizing turnaround or response time, often implemented using lottery scheduling with tickets.**
+
+---
+---
+
+# Chapter 9 – Scheduling: Proportional Share
+
+## Big Picture
+
+Earlier schedulers focused on **time-based optimization**:
+- **SJF / STCF** → minimize *turnaround time*
+- **Round Robin** → minimize *response time*
+- **MLFQ** → balance turnaround and response time *without knowing job length*
+
+**Proportional-share scheduling changes the goal**.
+
+Instead of optimizing *when* jobs finish, it guarantees **how much CPU time each job receives**.
+
+---
+
+## Proportional-Share Scheduling
+
+A proportional-share (or fair-share) scheduler tries to ensure that:
+
+> Each job receives a specific fraction of the CPU over time.
+
+The scheduler does **not**:
+- Predict job length
+- Optimize turnaround time
+- Optimize response time
+
+It **only enforces proportional CPU allocation**.
+
+---
+
+## 9.1 Basic Concept: Tickets Represent Your Share
+
+### Core Idea (Exam-Critical)
+
+Each process is assigned a number of **tickets**.
+
+> The fraction of tickets a process owns determines its share of the CPU.
+
+If:
+- Process A has 75 tickets
+- Process B has 25 tickets
+- Total tickets = 100
+
+Then, over time:
+- A receives ≈ 75% of CPU time
+- B receives ≈ 25% of CPU time
+
+This is the fundamental model.
+
+---
+
+## Lottery Scheduling
+
+Proportional-share scheduling is commonly implemented using **lottery scheduling**.
+
+### How it works
+
+1. At each scheduling decision, the scheduler runs a lottery
+2. It generates a random number in the range `[0, total_tickets - 1]`
+3. The process that owns the selected ticket runs
+
+Example:
+- Tickets 0–74 → Process A
+- Tickets 75–99 → Process B
+- Random draw = 63 → A runs
+- Random draw = 85 → B runs
+
+---
+
+## Probabilistic Fairness
+
+Lottery scheduling is **not deterministic**.
+
+- Short executions may appear unfair
+- Over long periods, CPU usage converges to the correct proportions
+
+Correct exam phrasing:
+> Lottery scheduling provides **probabilistic fairness**, not deterministic fairness.
+
+---
+
+## Why Randomness Is Used
+
+Randomized scheduling has important advantages:
+
+### 1. Avoids pathological cases
+- Deterministic schedulers can perform poorly on specific workloads
+- Random selection avoids worst-case patterns
+
+### 2. Lightweight
+- No need for precise per-process CPU accounting
+- Scheduler only tracks ticket counts
+
+### 3. Fast
+- Random number generation + lookup
+- Very low scheduling overhead
+
+---
+
+## Important Distinctions (Exam Traps)
+
+| Property | Lottery Scheduling |
+|--------|-------------------|
+Deterministic | No |
+Short-term fairness | Not guaranteed |
+Long-term fairness | Guaranteed |
+Exact CPU slice every interval | No |
+Proportional CPU share over time | Yes |
+
+---
+
+## Key Exam Takeaways
+
+- Tickets represent **CPU share**, not priority
+- More tickets → higher probability of running
+- Scheduling decisions are randomized
+- Fairness is **statistical**
+- Long-running workloads converge to desired CPU percentages
+- Proportional-share scheduling does **not** optimize turnaround or response time
+
+---
+---
+
+## 9.2 Ticket Mechanisms — Explanation Notes
+
+Lottery scheduling provides additional mechanisms that make proportional-share scheduling more flexible and practical. These mechanisms allow the scheduler to better model real-world situations such as user-level control, client/server interactions, and changing CPU demand.
+
+---
+
+### Ticket Currency
+
+Ticket currency allows tickets to be managed **locally** while still preserving **global fairness**.
+
+- The system maintains a **global ticket currency**.
+- Users (or groups) may define their own **local currency** to divide their share among their own jobs.
+- The scheduler automatically converts local ticket values into the global currency.
+
+**Key idea**:  
+Only the *relative share* matters, not the absolute number of tickets.
+
+**Example intuition**:
+- User A owns 50% of CPU time and runs two jobs.
+- User B owns 50% of CPU time and runs one job.
+- Even if User A assigns “500 tickets” to each job, the system normalizes these values so total CPU share remains fair.
+
+**Why this is useful**:
+- Users can manage their own CPU allocation without affecting others.
+- The OS maintains overall proportional fairness.
+
+---
+
+### Ticket Transfer
+
+Ticket transfer allows a process to **temporarily give its tickets to another process**.
+
+This is especially useful in **client/server systems**.
+
+**Problem**:
+- A client with many tickets requests work from a server with few tickets.
+- The server runs slowly, even though the client is waiting.
+
+**Solution**:
+- The client transfers its tickets to the server while the request is being handled.
+- The server runs faster.
+- After completing the work, tickets are returned to the client.
+
+**Key idea**:  
+CPU time should follow *who is doing the work*, not just who owns the tickets.
+
+---
+
+### Ticket Inflation
+
+Ticket inflation allows a process to **temporarily increase or decrease** its number of tickets.
+
+**Important constraints**:
+- Only safe in **trusted environments**.
+- Dangerous in competitive systems (a greedy process could monopolize the CPU).
+
+**Use case**:
+- A process knows it needs more CPU time temporarily.
+- It increases its ticket count to reflect that need.
+- The scheduler adjusts CPU share accordingly.
+
+**Key idea**:  
+Ticket inflation is a **hint**, not an enforced guarantee.
+
+---
+
+### Why Lottery Scheduling Uses Randomness
+
+Lottery scheduling selects the next process to run by:
+1. Picking a random number.
+2. Selecting the process whose ticket range contains that number.
+
+**Properties**:
+- Fairness is achieved **probabilistically**, not deterministically.
+- Short-term imbalance is possible.
+- Long-term CPU shares converge to the desired proportions.
+
+**Advantages of randomness**:
+- Simple implementation
+- Fast decision-making
+- Minimal per-process accounting
+- Avoids pathological worst-case behaviors
+
+---
+
+### Core Takeaways (Exam-Oriented)
+
+- Tickets represent **CPU share**
+- More tickets ⇒ higher probability of running
+- Ticket currency enables **local control + global fairness**
+- Ticket transfer lets **CPU follow work**
+- Ticket inflation supports **cooperative adaptation**
+- Lottery scheduling is **probabilistically fair**, not strictly fair
+
+---
+---
+
+## 9.3 Implementation (Lottery Scheduling)
+
+One of the most appealing aspects of lottery scheduling is the **simplicity of its implementation**.  
+To make scheduling decisions, the system needs only:
+
+- A **random number generator**
+- A **data structure** holding runnable processes (e.g., a list)
+- The **total number of tickets** across all runnable processes
+
+No complex history tracking or priority recalculation is required.
+
+---
+
+### Basic Scheduling Procedure
+
+Each runnable process owns a certain number of **tickets**.  
+More tickets mean a higher probability of being scheduled.
+
+To select the next process to run:
+
+1. Compute the **total number of tickets**
+2. Pick a **random number** in the range `[0, total_tickets - 1]`
+3. Traverse the list of processes, **accumulating ticket counts**
+4. The process whose cumulative ticket count exceeds the random number **wins the lottery**
+
+---
+
+### Example: Ticket Loop (Step-by-Step)
+
+Assume three runnable processes:
+
+- Process A → 100 tickets  
+- Process B → 50 tickets  
+- Process C → 250 tickets  
+
+Total tickets = **400**
+
+Ticket ranges:
+
+- A: tickets `[0 .. 99]`
+- B: tickets `[100 .. 149]`
+- C: tickets `[150 .. 399]`
+
+Now suppose the scheduler generates a random number: winner = 300
+
+The scheduler traverses the process list:
+
+- After A: cumulative = 100 → 100 < 300 → continue
+- After B: cumulative = 150 → 150 < 300 → continue
+- After C: cumulative = 400 → 400 > 300 → **C wins**
+
+➡️ **Process C is scheduled to run**
+
+---
+
+### Example: Repeated Lottery Circulation
+
+Suppose the scheduler performs multiple lotteries: Random picks: 63, 185, 70, 310, 12, 99, 240
+
+Winning processes:
+
+- 63  → A
+- 185 → C
+- 70  → A
+- 310 → C
+- 12  → A
+- 99  → A
+- 240 → C
+
+Resulting schedule (one time slice each): A C A C A A C 
+
+Although results vary in the short term, **over time** the fraction of CPU time converges to the ticket ratios.
+
+---
+
+### Key Property: Probabilistic Fairness
+
+Lottery scheduling guarantees fairness **in expectation**, not deterministically.
+
+- Short runs may appear unfair
+- Long runs converge to proportional CPU sharing
+
+This probabilistic behavior is acceptable (and often desirable) in many systems.
+
+---
+
+### Performance Notes
+
+- The algorithm runs in **O(n)** time for `n` runnable processes
+- Ordering processes by ticket count does **not affect correctness**
+- Ordering can reduce traversal cost when a few processes hold most tickets
+
+---
+
+### Takeaway
+
+Lottery scheduling provides:
+
+- Proportional CPU sharing
+- Simple implementation
+- Low accounting overhead
+- Robust fairness over time
+
+All achieved using randomness and ticket counting. 
+
+
 
 
