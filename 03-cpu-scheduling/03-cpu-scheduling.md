@@ -1,5 +1,3 @@
-Chapters 7,8,9,10,
-
 # Scheduling: Introduction (Chapter 7)
 
 Up to now, we have focused on the **low-level mechanisms** that allow an operating system to run processes, such as context switching. Scheduling shifts the focus from *mechanisms* to **policies**.
@@ -2428,6 +2426,843 @@ while **virtualized or controlled environments** often prefer proportional-share
 
 ---
 ---
+
+# Chapter 10 — Multiprocessor Scheduling (Advanced)
+
+## Introduction
+
+This chapter introduces the basics of **multiprocessor scheduling**. Because this topic is relatively advanced, it is best studied after covering **concurrency** in some detail. Historically, multiprocessor systems appeared first in high-end computing, but today they are commonplace in desktops, laptops, and mobile devices due to the rise of **multicore processors**.
+
+A multicore processor places multiple CPU cores on a single chip. This shift happened because increasing the speed of a single CPU became difficult without excessive power consumption. As a result, modern systems provide multiple CPUs/cores, which enables higher potential performance—**if software can exploit parallelism**.
+
+However, adding more CPUs introduces new challenges. A typical single-threaded application only uses one CPU; simply adding CPUs does not make such applications faster. To benefit from multiple CPUs, applications must be rewritten to run **in parallel**, typically using **threads**. Multithreaded applications can distribute work across CPUs and achieve better performance when more CPU resources are available.
+
+Beyond application design, the operating system faces new problems when scheduling across multiple CPUs. Many principles from single-CPU scheduling still apply, but **new issues arise** that require different approaches.
+
+---
+
+## The Crux: How to Schedule Jobs on Multiple CPUs
+
+**Key questions addressed in this chapter:**
+- How should the OS schedule jobs on multiple CPUs?
+- What new problems arise in multiprocessor systems?
+- Do single-CPU scheduling techniques still work, or are new ideas required?
+
+---
+
+## Why Multiprocessor Scheduling Is Hard (High-Level)
+
+- **Parallelism is not automatic:** single-threaded programs do not benefit from multiple CPUs.
+- **Caches matter:** each CPU has its own cache; moving a thread between CPUs can hurt performance.
+- **Synchronization costs increase:** locks and shared data can limit scalability.
+- **Scheduling trade-offs emerge:** balancing CPU utilization, cache locality, and fairness is harder than in single-CPU systems.
+
+---
+
+> **Key takeaway:** Multiprocessor scheduling introduces fundamental trade-offs between **load balancing**, **cache affinity**, and **synchronization overhead**. No scheduler can optimize all of them simultaneously.
+
+---
+---
+
+# 10.1 Background: Multiprocessor Architecture
+
+## Goal of this section
+This section explains **why multiprocessor scheduling is fundamentally harder than single-CPU scheduling**.  
+The core reason is the presence of **CPU caches** and how they interact when **multiple CPUs share the same main memory**.
+
+Before studying scheduling policies, we must understand the **hardware differences** between:
+- Single-CPU systems
+- Multi-CPU (multiprocessor / multicore) systems
+
+---
+
+## Single-CPU case (simpler case)
+
+In a system with **one CPU**:
+
+- The CPU has a **cache** (small, fast memory)
+- Main memory is **large but slow**
+- When data is accessed:
+  - First access → fetched from main memory (slow)
+  - Data is copied into the CPU cache
+  - Subsequent accesses → fetched from cache (fast)
+
+### Why caches work well
+Caches rely on **locality**:
+- **Temporal locality**: data accessed once is likely accessed again soon
+- **Spatial locality**: data near a recently accessed address is likely accessed next
+
+Because there is only **one CPU**, cache behavior is predictable and safe.
+
+---
+
+## What changes with multiple CPUs?
+
+In a **multiprocessor system**:
+
+- Each CPU has **its own private cache**
+- All CPUs share the **same main memory**
+
+This creates a new and serious problem.
+
+---
+
+## Cache coherence problem (key concept)
+
+Consider this scenario:
+
+1. A program runs on **CPU 1**
+2. CPU 1:
+   - Reads value `D` from memory address `A`
+   - Stores `D` in its cache
+   - Modifies it to `D′`
+   - Writes only to its cache (write-back cache)
+3. The OS **moves the process to CPU 2**
+4. CPU 2:
+   - Tries to read address `A`
+   - Its cache does not contain the updated value
+   - Fetches the old value `D` from memory
+
+Result:
+- CPU 2 sees **stale data**
+- Program behavior becomes incorrect
+
+This is known as the **cache coherence problem**.
+
+---
+
+## Cache coherence
+
+**Cache coherence** means:
+
+> All CPUs must observe a **consistent view of shared memory**, even though each CPU has its own cache.
+
+Without cache coherence:
+- CPUs may see different values for the same memory location
+- Programs may behave incorrectly
+- Scheduling decisions become dangerous
+
+---
+
+## How cache coherence is handled
+
+Cache coherence is mainly solved by **hardware**, not the OS.
+
+### Common technique: Bus snooping
+- Each cache monitors (“snoops”) memory bus traffic
+- When one CPU updates a memory location:
+  - Other CPUs detect the change
+  - They either:
+    - **Invalidate** their cached copy, or
+    - **Update** it with the new value
+
+This ensures all CPUs maintain a consistent view of memory.
+
+---
+
+## Why this matters for scheduling
+
+When the OS schedules processes on multiple CPUs:
+- Moving a process between CPUs causes **cache loss**
+- Cached data must be reloaded
+- Performance decreases
+
+Thus, multiprocessor scheduling must consider:
+- **Which CPU a process runs on**
+- **How often it migrates**
+- **Cache reuse and affinity**
+
+---
+
+## Key exam takeaway
+
+> Multiprocessor scheduling is harder than single-CPU scheduling because each CPU has its own cache, and moving processes between CPUs can cause cache coherence problems and performance loss.
+
+---
+---
+
+## 10.2 Don’t Forget Synchronization
+
+Even though modern multiprocessor hardware provides **cache coherence**, this does **not** mean that programs (or the OS) can safely access shared data without synchronization.
+
+### Cache Coherence vs. Correctness
+
+Cache coherence guarantees that:
+- Updates to shared memory eventually become visible to all CPUs.
+
+However, cache coherence **does NOT guarantee correctness**:
+- It does not make operations atomic.
+- It does not prevent race conditions.
+- It does not ensure consistent updates to shared data structures.
+
+Thus:
+
+> **Cache coherence ≠ synchronization**
+
+---
+
+### The Core Problem
+
+When multiple CPUs (or threads) **concurrently access and update shared data**, race conditions can occur even if caches are coherent.
+
+For example, consider a shared linked list accessed by multiple CPUs. If two threads run the same removal code at the same time:
+- Both may read the same `head` pointer.
+- Both may update `head`.
+- Both may free the same node.
+
+This can lead to:
+- Double frees
+- Corrupted data structures
+- Incorrect results
+
+Each thread has its own:
+- Registers
+- Stack
+- Local variables
+
+So interleavings can occur that break correctness.
+
+---
+
+### Why Locks Are Still Required
+
+To ensure correctness when accessing shared data:
+- **Mutual exclusion** primitives (e.g., locks, mutexes) must be used.
+- Locks ensure that only one CPU/thread enters a critical section at a time.
+
+Even with cache coherence:
+- Updating shared data structures **must be synchronized**.
+
+---
+
+### Key Takeaways
+
+- Cache coherence ensures **visibility**, not **atomicity**.
+- Synchronization ensures **correctness**.
+- Shared data structures accessed across CPUs **require locks**.
+- Without synchronization, race conditions occur even on coherent hardware.
+
+---
+
+### Exam-Friendly Summary
+
+- Cache coherence handles *where data comes from*.
+- Synchronization handles *who is allowed to update data*.
+- Correct multiprocessor programs require **both**.
+
+
+---
+---
+
+## 10.3 One Final Issue: Cache Affinity
+
+### What problem does cache affinity address?
+
+In a **multiprocessor system**, a process or thread can be scheduled on **different CPUs over time**.  
+The key question for the scheduler is:
+
+> Should a process be freely moved between CPUs, or should it stay on the same CPU when possible?
+
+This question leads to the concept of **cache affinity**.
+
+---
+
+### What is cache affinity?
+
+**Cache affinity** refers to the idea that a process runs **faster** when it continues to execute on the **same CPU**.
+
+Why?
+
+- While running, a process fills the CPU’s **cache** and **TLB** with useful data
+- Instructions, stack data, and frequently accessed memory are cached
+- If the process runs again on the same CPU, it can reuse this cached state
+
+This results in:
+- Fewer cache misses
+- Less memory traffic
+- Better performance
+
+---
+
+### What happens if the process moves to another CPU?
+
+If the scheduler runs the process on a **different CPU**:
+
+- That CPU’s cache does **not** contain the process’s data
+- The process must reload its working set from main memory
+- This causes cache misses and slows execution
+
+Important clarification:
+- The process still runs **correctly**
+- Hardware cache coherence protocols guarantee correctness
+- However, performance is worse
+
+So:
+
+- **Cache coherence** → correctness  
+- **Cache affinity** → performance
+
+---
+
+### Why should the scheduler care?
+
+A multiprocessor scheduler must balance two competing goals:
+
+- **Load balancing**: evenly distribute work across CPUs
+- **Cache affinity**: keep processes on the same CPU to improve performance
+
+A good scheduler:
+- Prefers to keep a process on the same CPU
+- Moves it only when necessary (e.g., CPU overload or imbalance)
+
+---
+
+### One-line exam definition
+
+> **Cache affinity** is the tendency of a process to perform better when scheduled repeatedly on the same CPU because its working set remains in that CPU’s cache.
+
+---
+
+### Common exam traps
+
+- Cache affinity is **not required for correctness**
+- Cache coherence **does not eliminate** cache affinity issues
+- Processes **may be moved**, but doing so can hurt performance
+
+---
+
+### Key takeaway
+
+- **Cache coherence ensures correctness**
+- **Cache affinity improves performance**
+- Multiprocessor schedulers should consider both
+
+---
+---
+
+## 10.4 Single-Queue Scheduling (SQMS)
+
+### Core Idea
+Single-Queue Multiprocessor Scheduling (SQMS) is the most basic way to schedule jobs on a multiprocessor system.  
+All runnable jobs are placed into **one global run queue**, and **all CPUs pull jobs from this same queue**.
+
+> Think of it as extending single-CPU scheduling to multiple CPUs by simply letting more CPUs pick jobs from the same list.
+
+---
+
+### Why SQMS Is Attractive
+
+- **Simplicity**  
+  Existing single-CPU scheduling policies (FIFO, SJF, Round Robin, etc.) can be reused.
+- **Minimal design effort**  
+  No need to invent a new scheduling algorithm.
+- **Correctness is easy**  
+  One queue gives a clear global ordering of jobs.
+
+---
+
+### Problem #1: Scalability
+
+Because all CPUs share the same queue:
+- The queue must be protected by a **lock**
+- Only **one CPU at a time** can access it
+
+As the number of CPUs increases:
+- Lock contention increases
+- CPUs spend more time waiting for the lock
+- Less time is spent doing useful work
+
+**Key takeaway:**  
+> SQMS does **not scale well** as CPU count grows.
+
+---
+
+### Problem #2: Cache Affinity
+
+**Cache affinity** means a process runs faster if it keeps running on the same CPU, because its data remains in that CPU’s cache.
+
+In SQMS:
+- A job may run on CPU 0, then CPU 2, then CPU 1
+- Its cache state is repeatedly lost
+- The job must reload data from memory
+
+This leads to:
+- More cache misses
+- Worse performance
+- Even though execution is still correct
+
+---
+
+### Example: Job Migration Problem
+
+With jobs A–E and 4 CPUs:
+- Each CPU repeatedly pulls the “next” job
+- Jobs bounce across CPUs over time
+- Cache locality is destroyed
+
+Schedulers may try to add **affinity heuristics** to keep jobs on the same CPU when possible, but this:
+- Adds complexity
+- Does not fully fix scalability issues
+
+---
+
+### Strengths of SQMS
+- Very simple to implement
+- Easy to adapt from single-CPU schedulers
+
+### Weaknesses of SQMS
+- Poor scalability due to lock contention
+- Poor cache affinity due to frequent job migration
+
+---
+
+### Exam-Ready Summary
+> Single-Queue Multiprocessor Scheduling reuses single-CPU scheduling logic by placing all jobs in one global queue.  
+> While simple, it scales poorly because of lock contention and performs badly with respect to cache affinity.
+
+---
+---
+
+## 10.5 Multi-Queue Multiprocessor Scheduling (MQMS)
+
+### Motivation
+Single-Queue Multiprocessor Scheduling (SQMS) suffers from:
+- Poor scalability due to lock contention
+- Weak cache affinity
+- Global queue bottlenecks
+
+To address these issues, systems adopt **Multi-Queue Multiprocessor Scheduling (MQMS)**.
+
+---
+
+## Core Idea
+
+- Each CPU has **its own scheduling queue**
+- Jobs are placed into **one queue only**
+- Each CPU schedules **independently**
+- Each queue can use a standard policy (e.g., Round Robin)
+
+This avoids global locks and improves cache locality.
+
+---
+
+## Example: Two CPUs, Four Jobs
+
+Assume:
+- CPUs: CPU 0 and CPU 1
+- Jobs: A, B, C, D
+
+### Queue Assignment 
+
+Q0 → A → C
+Q1 → B → D
+
+Each CPU schedules from its own queue.
+
+---
+
+## Example Schedule (Round Robin per Queue)
+
+### Timeline
+
+CPU 0: A | A | C | C | A | A | C | C | …
+CPU 1: B | B | D | D | B | B | D | D | …
+
+Each CPU alternates between its local jobs.
+
+---
+
+## Advantages of MQMS
+
+### 1. Scalability
+- No global run queue
+- No global lock
+- CPU count can increase without contention explosion
+
+### 2. Cache Affinity
+- Jobs tend to stay on the same CPU
+- Cache contents are reused
+- Fewer cache misses and reloads
+
+---
+
+## Fundamental Problem: Load Imbalance
+
+Because queues are independent, **load may become uneven**.
+
+### Example: Job Completion Causes Imbalance
+
+Suppose job C finishes: 
+
+Q0 → A
+Q1 → B → D
+
+Now scheduling proceeds as:
+
+CPU 0: A | A | A | A | A | …
+CPU 1: B | B | D | D | B | …
+
+### Result:
+- CPU 0 runs only A
+- CPU 1 splits time between B and D
+- **A gets twice as much CPU**
+- Fairness is broken
+
+---
+
+## Worse Case: Idle CPU
+
+If both A and C finish:
+
+Q0 → (empty)
+Q1 → B → D
+
+### Resulting Timeline
+
+CPU 0: IDLE | IDLE | IDLE | …
+CPU 1: B | B | D | D | …
+
+🚨 **CPU 0 is completely idle while work exists on CPU 1**
+
+---
+
+## The Crux: Load Imbalance
+
+> MQMS solves scalability and cache affinity  
+> but **does not automatically balance load**
+
+---
+
+## Solution: Migration
+
+### Job Migration
+- Move jobs from overloaded CPUs to idle ones
+- Restores balance
+- Improves utilization
+
+### Simple Migration Example
+
+Before:
+Q0 → (empty)
+Q1 → B → D
+
+After migration:
+Q0 → B
+Q1 → D
+
+---
+
+## Harder Case: Continuous Imbalance
+
+Q0 → A
+Q1 → B → D
+
+A single migration doesn’t solve the problem permanently.
+
+### Possible Timeline with Migration
+
+CPU 0: A | A | B | A | B | …
+CPU 1: B | D | D | D | A | …
+
+Jobs are periodically moved to rebalance load.
+
+---
+
+## Work Stealing (Important)
+
+A common modern technique is **work stealing**:
+
+- Idle CPU checks another CPU’s queue
+- If another queue is full, it **steals a job**
+- Load is balanced dynamically
+
+### Trade-offs
+
+| Too Frequent Stealing | Too Rare Stealing |
+|----------------------|------------------|
+| High overhead        | Load imbalance  |
+| Poor scalability     | Idle CPUs       |
+
+Finding the right balance is a **policy challenge**.
+
+---
+
+## Summary of MQMS
+
+| Aspect | MQMS |
+|------|------|
+| Scalability | Excellent |
+| Cache Affinity | Strong |
+| Lock Contention | Minimal |
+| Load Balance | Manual / Migration |
+| Complexity | Higher than SQMS |
+
+---
+
+## One-Line Exam Takeaway 🚨
+
+**Multi-queue scheduling improves scalability and cache affinity by using per-CPU queues, but introduces load imbalance that must be addressed via migration techniques such as work stealing.**
+
+---
+---
+
+## 10.6 Linux Multiprocessor Schedulers
+
+In the Linux community, there has never been a single universally accepted solution for building a multiprocessor scheduler. Over time, **three different schedulers** have been developed, each reflecting a different design philosophy:
+
+- **O(1) Scheduler**
+- **Completely Fair Scheduler (CFS)**
+- **Brain Fuck Scheduler (BFS)**
+
+This diversity shows that **both single-queue and multi-queue approaches can be viable**, depending on system goals and trade-offs.
+
+---
+
+### O(1) Scheduler
+- Uses **multiple queues**
+- **Priority-based** scheduler (similar to MLFQ)
+- Scheduler decisions take constant time → **O(1)**
+- Adjusts process priorities dynamically over time
+- Focuses heavily on **interactivity** (keeping the system responsive)
+
+**Key idea:**  
+Run the highest-priority task next, quickly and predictably.
+
+---
+
+### Completely Fair Scheduler (CFS)
+- Uses **multiple queues**
+- A **deterministic proportional-share scheduler**
+- Conceptually similar to **stride scheduling**
+- Tries to divide CPU time fairly among processes
+- Uses the idea of *virtual runtime* to approximate “ideal multitasking”
+
+**Key idea:**  
+Each process should receive its fair share of CPU time over the long run.
+
+> CFS is the **default scheduler in modern Linux systems**.
+
+---
+
+### Brain Fuck Scheduler (BFS)
+- Uses a **single queue**
+- Still a **proportional-share scheduler**
+- Based on **Earliest Eligible Virtual Deadline First (EEVDF)**
+- Much simpler design than O(1) or CFS
+- Often targets **desktop responsiveness**
+
+**Key idea:**  
+A single global queue can work if fairness is computed carefully.
+
+---
+
+### Comparison Summary
+
+| Scheduler | Queue Structure | Scheduling Style | Main Focus |
+|--------|----------------|------------------|-----------|
+| O(1) | Multi-queue | Priority-based | Interactivity |
+| CFS | Multi-queue | Proportional-share | Fairness |
+| BFS | Single-queue | Proportional-share (EEVDF) | Simplicity + fairness |
+
+---
+
+### Key Takeaways (Exam-Oriented)
+
+- Linux has experimented with **multiple multiprocessor schedulers**
+- **Multi-queue and single-queue designs can both succeed**
+- O(1) emphasizes **priority and responsiveness**
+- CFS emphasizes **fair CPU sharing**
+- BFS shows that even **single-queue schedulers** can be fair
+- Scheduler design depends on trade-offs between **fairness, scalability, and simplicity**
+
+**Exam sentence to remember:**
+
+> Linux multiprocessor scheduling evolved through multiple designs (O(1), CFS, BFS), demonstrating that both single-queue and multi-queue schedulers can work depending on system goals such as fairness and interactivity.
+
+---
+---
+
+# Chapter 10 — Multiprocessor Scheduling (Advanced)
+
+## Big Picture
+
+This chapter explains **why CPU scheduling becomes much harder when multiple CPUs are involved**.  
+While hardware guarantees *correctness* (via cache coherence), **performance, scalability, and fairness** become difficult to balance. There is **no single best scheduler** — only trade-offs.
+
+---
+
+## Core Problems in Multiprocessor Scheduling
+
+### 1. Cache Coherence vs. Cache Performance
+- Hardware cache coherence ensures **correctness**.
+- However, **performance suffers** if a process frequently moves between CPUs.
+- Each CPU has its own cache and TLBs.
+- Moving a process forces cache reloads → slower execution.
+
+**Key concept:** **Cache Affinity**  
+> A process should preferably run on the same CPU it ran on before.
+
+---
+
+### 2. Synchronization Is Unavoidable
+- Shared data structures (run queues, lists, counters) exist.
+- Even with cache coherence, **locks are required** for correctness.
+- Locks introduce:
+  - Contention
+  - Overhead
+  - Poor scalability as CPU count increases
+
+**Takeaway:**  
+Correctness requires synchronization, but synchronization hurts scalability.
+
+---
+
+## Scheduling Approaches
+
+### 10.4 Single-Queue Multiprocessor Scheduling (SQMS)
+
+**Idea:**
+- One global run queue
+- All CPUs pull jobs from the same queue
+
+**Advantages:**
+- Simple design
+- Automatic load balancing
+
+**Problems:**
+- Heavy lock contention
+- Poor scalability
+- Bad cache affinity (processes bounce between CPUs)
+
+**Summary:**
+> SQMS is easy to implement but does **not scale**.
+
+---
+
+### 10.5 Multi-Queue Multiprocessor Scheduling (MQMS)
+
+**Idea:**
+- One run queue per CPU
+- Each CPU schedules independently
+
+**Advantages:**
+- Scales well
+- Preserves cache affinity
+- Minimal locking
+
+**New Problems Introduced:**
+- Load imbalance (one CPU idle, another overloaded)
+- Requires **process migration**
+- Migration destroys cache affinity
+
+---
+
+## Load Imbalance and Migration
+
+### Load Imbalance
+Occurs when:
+- Some CPUs have many jobs
+- Others have few or none
+
+### Migration
+- Moving a job from one CPU to another to rebalance load
+
+**Benefits:**
+- Improves utilization
+- Prevents idle CPUs
+
+**Costs:**
+- Cache and TLB cold misses
+- Performance degradation
+
+---
+
+## Work Stealing
+
+**Work Stealing Strategy:**
+- An idle CPU looks at another CPU’s queue
+- “Steals” one or more jobs
+
+**Trade-off:**
+- Too frequent stealing → high overhead
+- Too rare stealing → load imbalance
+
+**Important Insight:**
+> Finding the right migration frequency is a *heuristic*, not a formula.
+
+---
+
+## Cache Affinity (10.3)
+
+- Processes accumulate state in CPU caches and TLBs.
+- Running on the same CPU is faster.
+- Schedulers try to:
+  - Preserve affinity when possible
+  - Break it only to improve load balance
+
+---
+
+## Linux Multiprocessor Schedulers (10.6)
+
+Linux does **not** use a single pure model.
+
+Historically:
+- **O(1) Scheduler**: Priority-based, MLFQ-like
+- **CFS (Completely Fair Scheduler)**: Deterministic proportional-share
+- **BFS**: Single-queue proportional-share (EEVDF-based)
+
+Modern Linux:
+- Uses **per-CPU run queues**
+- Preserves cache affinity
+- Performs periodic load balancing
+- Applies heuristics instead of strict rules
+
+**Key lesson:**
+> Real systems mix ideas instead of following theory strictly.
+
+---
+
+## Why There Is No “Perfect” Scheduler
+
+Every improvement introduces a cost:
+
+| Goal | Helps | Hurts |
+|----|----|----|
+| Single queue | Load balance | Scalability, cache affinity |
+| Multiple queues | Scalability | Load balance |
+| Migration | Utilization | Cache locality |
+| Cache affinity | Performance | Fairness |
+
+**Final takeaway:**
+> Multiprocessor scheduling is about trade-offs, not optimal solutions.
+
+---
+
+## Exam-Oriented Key Takeaways
+
+You should be able to explain:
+
+- Why multiprocessor scheduling is harder than single-CPU scheduling
+- What cache affinity is and why it matters
+- Why a single global queue does not scale
+- Why per-CPU queues cause load imbalance
+- What migration solves and what it breaks
+- Why general-purpose schedulers rely on heuristics
+
+---
+
+## Final Summary (My Added Summary)
+
+Multiprocessor scheduling highlights the fundamental tension between **scalability, fairness, cache performance, and simplicity**.  
+Single-queue schedulers are simple but fail to scale; multi-queue schedulers scale but require complex migration policies. Cache affinity improves performance but conflicts with load balancing. As a result, modern operating systems (like Linux) rely on **hybrid designs and heuristics**, accepting that no scheduler can optimize all goals simultaneously.
+
+
+
+
+
+
+
+
 
 
 
