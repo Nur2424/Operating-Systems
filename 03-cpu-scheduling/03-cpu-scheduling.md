@@ -2065,6 +2065,369 @@ Lottery scheduling provides:
 
 All achieved using randomness and ticket counting. 
 
+---
+---
+
+## 9.4 An Example (Lottery Scheduling Fairness)
+
+To better understand the behavior of lottery scheduling, we examine a simple scenario with **two jobs** competing for the CPU.
+
+### Experimental Setup
+
+- Two jobs compete for the CPU
+- Each job has:
+  - The same number of tickets (100)
+  - The same run time \( R \) (varied in the experiment)
+- Scheduling is done using lottery scheduling
+
+Ideally, both jobs should finish at roughly the same time.
+
+---
+
+### Randomness and Completion Time
+
+Because lottery scheduling is **randomized**, one job may win more lotteries early and finish before the other, even though both jobs are identical.
+
+To quantify this effect, we define an **unfairness metric**:
+
+\[
+U = \frac{\text{completion time of the first job}}{\text{completion time of the second job}}
+\]
+
+- If both jobs finish together, \( U \approx 1 \)
+- If one job finishes much earlier, \( U \ll 1 \)
+- A perfectly fair scheduler would achieve \( U = 1 \)
+
+---
+
+### Example
+
+If:
+- First job finishes at time 10
+- Second job finishes at time 20
+
+Then:
+
+\[
+U = \frac{10}{20} = 0.5
+\]
+
+This indicates unfairness.
+
+---
+
+### Observations from the Experiment
+
+The experiment varies job length \( R \) from 1 to 1000 and averages results over multiple trials.
+
+Key observations:
+- When job length is **small**, unfairness is high
+- As job length increases, unfairness decreases
+- For long-running jobs, lottery scheduling approaches perfect fairness
+
+---
+
+### Key Insight
+
+Lottery scheduling provides **probabilistic fairness**:
+
+- Short-running jobs may experience unfairness
+- Over many time slices, randomness averages out
+- Long-running jobs receive CPU time proportional to their tickets
+
+This behavior is expected and acceptable in randomized schedulers.
+
+---
+---
+
+## 9.5 How To Assign Tickets?
+
+One important problem not fully addressed by lottery scheduling is **how to assign tickets to jobs**.
+
+The behavior of a proportional-share scheduler depends heavily on how tickets are allocated. Different ticket assignments can lead to very different system behavior.
+
+One possible approach is to assume that **users know best**:
+- Each user is given some number of tickets
+- The user can distribute those tickets among their own jobs however they want
+
+However, this approach is essentially a **non-solution**:
+- It does not provide clear guidance on *how* tickets should be assigned
+- It simply shifts the responsibility (and difficulty) to the user
+
+As a result, given a set of jobs, the **ticket-assignment problem remains open**. There is no universally correct or automatic way to decide how many tickets each job should receive.
+
+---
+---
+
+## 9.6 Why Not Deterministic? — Stride Scheduling
+
+Lottery scheduling provides proportional fairness **probabilistically**, but not deterministically.  
+Over short time scales, randomness can cause noticeable unfairness even if long-term fairness is achieved.
+
+To address this, **stride scheduling** was introduced as a **deterministic fair-share scheduler**.
+
+---
+
+### Core Idea of Stride Scheduling
+
+Each process has:
+- **Tickets** → represent desired CPU share
+- **Stride** → inversely proportional to tickets
+- **Pass value** → tracks how much CPU the process has already received
+
+A large constant (e.g., 10,000) is divided by the number of tickets to compute the stride.
+
+Example:
+- Process A: 100 tickets → stride = 100
+- Process B: 50 tickets → stride = 200
+- Process C: 250 tickets → stride = 40
+
+The scheduler always runs the process with the **lowest pass value**.
+
+After running for one time slice: pass = pass + stride
+
+---
+
+### Stride Scheduling Algorithm (Conceptual)
+
+1. Pick the process with the smallest pass value
+2. Run it for one time slice
+3. Increment its pass value by its stride
+4. Reinsert it into the queue
+5. Repeat
+
+This guarantees **exact proportional CPU allocation**.
+
+---
+
+### Figure 9.3 — Stride Scheduling: A Trace (Markdown Table)
+
+| Pass(A) (stride=100) | Pass(B) (stride=200) | Pass(C) (stride=40) | Who Runs |
+|----------------------|----------------------|---------------------|----------|
+| 0                    | 0                    | 0                   | A        |
+| 100                  | 0                    | 0                   | B        |
+| 100                  | 200                  | 0                   | C        |
+| 100                  | 200                  | 40                  | C        |
+| 100                  | 200                  | 80                  | C        |
+| 100                  | 200                  | 120                 | A        |
+| 200                  | 200                  | 120                 | C        |
+| 200                  | 200                  | 160                 | C        |
+| 200                  | 200                  | 200                 | ...      |
+
+From this trace:
+- C runs **5 times**
+- A runs **2 times**
+- B runs **1 time**
+
+This exactly matches their ticket ratios:
+- C: 250 tickets
+- A: 100 tickets
+- B: 50 tickets
+
+---
+
+### Lottery vs Stride Scheduling (Exam Insight)
+
+- **Lottery Scheduling**
+  - Probabilistic fairness
+  - Simple
+  - Easy to add new processes
+  - No per-process global state
+
+- **Stride Scheduling**
+  - Deterministic fairness
+  - Exact proportional allocation
+  - Requires maintaining pass values
+  - Harder when new processes arrive dynamically
+
+**Key takeaway:**  
+Lottery scheduling trades precision for simplicity, while stride scheduling trades simplicity for exact fairness.
+
+---
+---
+
+# Chapter 9 — Scheduling: Proportional Share
+
+## Core Idea: Fair Sharing Instead of Speed
+
+Earlier scheduling policies focused on **performance metrics**:
+
+- **SJF / STCF** → minimize **turnaround time**
+- **Round Robin** → minimize **response time**
+- **MLFQ** → balance both without knowing job length
+
+In contrast, **proportional-share scheduling** asks a different question:
+
+> How much of the CPU should each job receive?
+
+The goal is to **guarantee a percentage of CPU time** to each job, rather than deciding which job finishes first.
+
+This is why proportional-share scheduling is also called **fair-share scheduling**.
+
+---
+
+## Lottery Scheduling
+
+### Basic Idea
+
+Lottery scheduling implements proportional sharing using **randomness**.
+
+- Each process owns some number of **tickets**
+- The fraction of tickets a process owns equals its **share of the CPU**
+- Every time slice, the scheduler:
+  1. Draws a random ticket
+  2. Runs the process that owns that ticket
+
+### Example
+
+- Process A: 75 tickets  
+- Process B: 25 tickets  
+- Total: 100 tickets  
+
+Expected CPU usage:
+- A → 75%
+- B → 25%
+
+Over short time scales, results may be unfair.  
+Over long time scales, CPU usage converges to the desired proportions.
+
+### Properties
+
+- ✔ Simple
+- ✔ Flexible
+- ✖ Only **probabilistically fair** (not exact at every moment)
+
+---
+
+## Why Randomness Helps
+
+Randomness in scheduling:
+
+- Avoids worst-case pathological behaviors
+- Requires little per-process state
+- Is fast to compute
+- Works well when exact fairness is not immediately required
+
+However, randomness **cannot guarantee exact proportions at every instant**.
+
+---
+
+## Ticket Mechanisms
+
+Lottery scheduling supports several powerful extensions.
+
+### 1. Ticket Currency
+
+Allows users to subdivide their tickets among their own jobs.
+
+Example:
+- User A has 100 tickets
+- Runs two jobs → assigns 50 tickets to each
+- System automatically converts these into global tickets
+
+This enables **hierarchical resource sharing**.
+
+---
+
+### 2. Ticket Transfer
+
+Useful in **client/server systems**.
+
+- A client temporarily gives its tickets to a server
+- The server runs faster on behalf of the client
+- Tickets are returned when the request completes
+
+This avoids priority-inversion–like problems.
+
+---
+
+### 3. Ticket Inflation
+
+A process can temporarily increase or decrease its ticket count.
+
+- ⚠ Dangerous if processes do not trust each other
+- ✔ Useful in cooperative environments
+
+---
+
+## Implementation Simplicity
+
+Lottery scheduling is easy to implement:
+
+1. Generate a random number in `[0, total_tickets)`
+2. Traverse the process list while summing tickets
+3. The first process whose cumulative sum exceeds the random number runs
+
+There is:
+- No job-length prediction
+- No complex priority queues
+- Minimal per-process state
+
+---
+
+## Fairness Analysis
+
+The chapter defines an **unfairness metric**: U = finish_time_of_first_job / finish_time_of_second_job
+
+- Perfect fairness → `U ≈ 1`
+- Short jobs → more unfairness
+- Long-running jobs → fairness improves over time
+
+Key insight:
+
+> Lottery scheduling becomes fair **only over long time scales**.
+
+---
+
+## Why Not Deterministic? → Stride Scheduling
+
+To eliminate randomness, **stride scheduling** was introduced.
+
+### Stride Scheduling Concepts
+
+Each process has:
+- **Tickets**
+- **Stride** = large_constant / tickets
+- **Pass value**
+
+Scheduling rule:
+- Run the process with the **lowest pass value**
+- After running, increment its pass by its stride
+
+### Properties
+
+- ✔ Deterministic
+- ✔ Exactly proportional sharing
+- ✖ Requires global per-process state
+- ✖ More complex to manage dynamically
+
+---
+
+## Why Lottery Scheduling Still Matters
+
+Compared to stride scheduling, lottery scheduling:
+
+- Has no per-process global state
+- Handles new processes naturally
+- Is easier to integrate dynamically
+
+---
+
+## Final Takeaways (Exam Important)
+
+- **Proportional-share scheduling** focuses on fair CPU distribution
+- **Lottery scheduling** achieves fairness probabilistically using tickets
+- **Stride scheduling** achieves fairness deterministically using strides
+- These schedulers are best when:
+  - CPU shares are easy to define
+  - Jobs are long-running
+  - Fairness matters more than response or turnaround time
+
+General-purpose OSes usually prefer **MLFQ**,  
+while **virtualized or controlled environments** often prefer proportional-share schedulers.
+
+---
+---
 
 
 
