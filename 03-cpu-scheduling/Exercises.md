@@ -447,3 +447,222 @@ D. Preventing cache misses by pinning jobs
 
 ---
 
+## Q21) Turnaround vs response time (Ch. 7)
+
+Which workload benefits **more** from optimizing **response time** rather than turnaround time?
+
+A. Batch processing jobs  
+B. CPU-bound scientific simulations  
+C. Interactive applications (e.g., shells, editors)  
+D. Long-running background services  
+
+**Correct answer: C — Interactive applications**
+
+- **A. Batch processing jobs — False**  
+  Batch workloads prioritize total completion time (turnaround).
+- **B. CPU-bound simulations — False**  
+  These are long-running and not user-interactive.
+- **C. Interactive applications — True**  
+  Users care about quick feedback, not total runtime.
+- **D. Background services — False**  
+  Throughput and stability matter more than response time.
+
+---
+
+## Q22) STCF starvation (Ch. 7)
+
+Shortest Time-to-Completion First (STCF) can cause starvation because:
+
+A. It never preempts running jobs  
+B. Long jobs may never get CPU if short jobs keep arriving  
+C. It gives all jobs equal priority  
+D. It relies on time slices  
+
+**Correct answer: B — Long jobs may starve**
+
+- **A. Never preempts — False**  
+  STCF is preemptive.
+- **B. Long jobs may starve — True**  
+  Short jobs can repeatedly preempt longer ones.
+- **C. Equal priority — False**  
+  Jobs are prioritized by remaining time.
+- **D. Time slices — False**  
+  Starvation comes from preemption policy, not time slicing.
+
+---
+
+## Q23) Round Robin quantum size (Ch. 7)
+
+If the Round Robin time quantum is chosen **too small**, the system will mainly suffer from:
+
+A. Starvation  
+B. Convoy effect  
+C. Excessive context switching  
+D. Poor cache coherence  
+
+**Correct answer: C — Excessive context switching**
+
+- **A. Starvation — False**  
+  Round Robin prevents starvation.
+- **B. Convoy effect — False**  
+  This is a FIFO issue.
+- **C. Excessive context switching — True**  
+  Very small quanta increase overhead and cache misses.
+- **D. Poor cache coherence — False**  
+  Coherence ensures correctness, not scheduling efficiency.
+
+---
+
+## Q24) MLFQ priority interpretation (Ch. 8)
+
+In MLFQ, a job that frequently performs I/O is interpreted as:
+
+A. CPU-bound  
+B. Interactive  
+C. Low priority  
+D. Malicious  
+
+**Correct answer: B — Interactive**
+
+- **A. CPU-bound — False**  
+  CPU-bound jobs use full time slices.
+- **B. Interactive — True**  
+  Frequent I/O indicates user interaction.
+- **C. Low priority — False**  
+  Interactive jobs remain high priority.
+- **D. Malicious — False**  
+  Scheduler does not judge intent.
+
+---
+
+## Q25) MLFQ gaming problem (Ch. 8)
+
+A program that voluntarily yields the CPU just before its time slice expires is an example of:
+
+A. Priority inversion  
+B. Cache affinity optimization  
+C. Gaming the scheduler  
+D. Deadlock  
+
+**Correct answer: C — Gaming the scheduler**
+
+- **A. Priority inversion — False**  
+  This involves locks and priorities.
+- **B. Cache affinity optimization — False**  
+  This behavior manipulates priority, not cache usage.
+- **C. Gaming the scheduler — True**  
+  The job pretends to be interactive to gain priority.
+- **D. Deadlock — False**  
+  No circular waiting occurs.
+
+---
+
+## Q26) Lottery scheduling randomness (Ch. 9) 
+
+Lottery scheduling uses randomness primarily to:
+
+A. Reduce scheduler overhead  
+B. Guarantee deterministic execution order  
+C. Approximate proportional-share fairness  
+D. Prevent context switches  
+
+**Correct answer: C — Approximate proportional-share fairness**
+
+- **A. Reduce overhead — False**  
+  Random choice does not reduce overhead.
+- **B. Deterministic order — False**  
+  Lottery scheduling is non-deterministic.
+- **C. Approximate fairness — True**  
+  Ticket ratios determine expected CPU share over time.
+- **D. Prevent context switches — False**  
+  Scheduling still involves context switching.
+- Lottery scheduling is probabilistic and non-deterministic.You cannot tell predict with 100% which process will run next. 
+---
+
+## Q27) Stride scheduling precision (Ch. 9)
+
+Stride scheduling is often described as the “deterministic version” of lottery scheduling because it:
+
+A. Eliminates starvation completely  
+B. Does not use tickets  
+C. Produces exact proportional CPU allocation  
+D. Avoids priority queues  
+
+**Correct answer: C — Exact proportional allocation**
+
+- **A. Eliminates starvation — False**  
+  Starvation is not fully eliminated.
+- **B. Does not use tickets — False**  
+  Tickets are conceptually used to compute strides.
+- **C. Exact proportional allocation — True**  
+  Deterministic selection guarantees precise fairness.
+- **D. Avoids priority queues — False**  
+  Priority structures are typically required.
+
+---
+
+## Q28) Cache affinity harm (Ch. 10)
+
+Which scheduling decision most directly **harms cache affinity**?
+
+A. Keeping a job on the same CPU  
+B. Migrating a job between CPUs frequently  
+C. Using per-CPU run queues  
+D. Using Round Robin locally  
+
+**Correct answer: B — Frequent migration**
+
+- **A. Same CPU — False**  
+  Preserves cache locality.
+- **B. Frequent migration — True**  
+  Causes cache and TLB cold misses.
+- **C. Per-CPU queues — False**  
+  They improve affinity.
+- **D. Local Round Robin — False**  
+  Does not inherently break affinity.
+
+---
+
+## Q29) SQMS lock contention (Ch. 10)
+
+In Single-Queue Multiprocessor Scheduling (SQMS), lock contention increases because:
+
+A. Each CPU has its own run queue  
+B. CPUs frequently migrate jobs  
+C. All CPUs must synchronize on the same run queue  
+D. Cache coherence is disabled  
+
+**Correct answer: C — Shared run queue**
+
+- **A. Per-CPU queues — False**  
+  That describes MQMS.
+- **B. Job migration — False**  
+  Not the root cause of contention.
+- **C. Shared run queue — True**  
+  All CPUs compete for the same lock.
+- **D. Cache coherence disabled — False**  
+  Coherence is still present.
+- Lock contention occurs when a thread attempts to acquire a lock that is already held by another thread. 
+---
+
+## Q30) MQMS load balancing (Ch. 10)
+
+Why does Multi-Queue Multiprocessor Scheduling (MQMS) require **explicit load balancing**?
+
+A. Jobs cannot be preempted  
+B. CPUs do not share memory  
+C. Each CPU schedules independently from its own queue  
+D. Locks are never used  
+
+**Correct answer: C — Independent scheduling**
+
+- **A. No preemption — False**  
+  Preemption is supported.
+- **B. No shared memory — False**  
+  CPUs do share memory.
+- **C. Independent queues — True**  
+  No global view of load leads to imbalance.
+- **D. Locks never used — False**  
+  Locks may still exist locally.
+
+---
