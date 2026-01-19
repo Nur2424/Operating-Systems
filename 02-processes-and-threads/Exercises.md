@@ -564,6 +564,470 @@ D. Replace locks
 **Answer: C**  
 Condition variables allow threads to sleep and be signaled when a condition becomes true.
 
+---
+---
+
+## Q21) Machine state (Ch. 4)
+
+Which of the following is **not** part of the machine state that must be saved during a context switch?
+
+A. Program counter  
+B. CPU registers  
+C. Process address space  
+D. Page replacement algorithm  
+
+**Correct answer: D — Page replacement algorithm**
+
+- **A. Program counter — False**  
+  The PC must be saved so the process can resume correctly.
+- **B. CPU registers — False**  
+  Register contents are part of the execution context.
+- **C. Process address space — False**  
+  The memory context must be restored for the process.
+- **D. Page replacement algorithm — True**  
+  This is a system-wide policy, not per-process state.
+
+---
+
+## Q22) Process states (Ch. 4)
+
+A process moves from **RUNNING** to **READY** when:
+
+A. It issues an I/O request  
+B. It finishes execution  
+C. Its time slice expires  
+D. It waits for a child process  
+
+**Correct answer: C — Its time slice expires**
+
+- **A. Issues I/O — False**  
+  Causes RUNNING → WAITING.
+- **B. Finishes execution — False**  
+  Causes RUNNING → TERMINATED.
+- **C. Time slice expires — True**  
+  Preemption moves the process back to READY.
+- **D. Waits for child — False**  
+  Causes RUNNING → WAITING.
+
+---
+
+## Q23) System calls (Ch. 4)
+
+Which statement about system calls is correct?
+
+A. They are implemented in user space  
+B. They always block the calling process  
+C. They cause a controlled transition to kernel mode  
+D. They terminate the calling process  
+
+**Correct answer: C — Controlled transition to kernel mode**
+
+- **A. Implemented in user space — False**  
+  System calls execute kernel code.
+- **B. Always block — False**  
+  Many system calls are non-blocking.
+- **C. Controlled transition — True**  
+  System calls use traps to safely enter kernel mode.
+- **D. Terminate process — False**  
+  Only specific calls may terminate a process.
+
+---
+
+## Q24) fork() semantics (Ch. 5)
+
+After a successful `fork()`:
+
+A. Parent and child share the same PID  
+B. Child executes a different program  
+C. Parent and child have separate address spaces  
+D. The parent is blocked until the child exits  
+
+**Correct answer: C — Separate address spaces**
+
+- **A. Same PID — False**  
+  Each process has a unique PID.
+- **B. Different program — False**  
+  `exec()` changes the program, not `fork()`.
+- **C. Separate address spaces — True**  
+  Logical separation (often via copy-on-write).
+- **D. Parent blocked — False**  
+  Parent continues execution unless it calls `wait()`.
+
+---
+
+## Q25) exec() behavior (Ch. 5)
+
+Which statement is true if `exec()` succeeds?
+
+A. A new process is created  
+B. The process keeps the same PID  
+C. The parent process terminates  
+D. `exec()` returns twice  
+
+**Correct answer: B — Same PID**
+
+- **A. New process — False**  
+  `exec()` does not create a new process.
+- **B. Same PID — True**  
+  Only the address space is replaced.
+- **C. Parent terminates — False**  
+  Unrelated to `exec()`.
+- **D. Returns twice — False**  
+  That is `fork()` behavior.
+
+---
+
+## Q26) Zombie processes (Ch. 5)
+
+A zombie process exists because:
+
+A. It is waiting for I/O  
+B. It is still executing  
+C. Its parent has not yet collected its exit status  
+D. It was killed by the scheduler  
+
+**Correct answer: C — Parent has not collected exit status**
+
+- **A. Waiting for I/O — False**  
+  That is a blocked process.
+- **B. Still executing — False**  
+  Zombies have already terminated.
+- **C. Exit status not collected — True**  
+  Entry remains in the process table.
+- **D. Killed by scheduler — False**  
+  Scheduler does not create zombies.
+
+---
+
+## Q27) Threads vs processes (Ch. 26)
+
+Threads of the same process share:
+
+A. Stack memory  
+B. Program counter  
+C. Address space  
+D. CPU registers  
+
+**Correct answer: C — Address space**
+
+- **A. Stack — False**  
+  Each thread has its own stack.
+- **B. Program counter — False**  
+  Each thread has its own PC.
+- **C. Address space — True**  
+  Heap and global variables are shared.
+- **D. Registers — False**  
+  Registers are thread-specific.
+
+---
+
+## Q28) Concurrency definition (Ch. 26)
+
+The term **concurrency** refers to:
+
+A. Multiple processes running simultaneously on multiple CPUs  
+B. Multiple threads executing on a single CPU via interleaving  
+C. Only parallel execution on multicore systems  
+D. Only single-threaded execution  
+
+**Correct answer: B — Interleaving on a single CPU**
+
+- **A. Multiple CPUs — False**  
+  That describes parallelism.
+- **B. Interleaving — True**  
+  Concurrency can exist without parallelism.
+- **C. Only multicore — False**  
+  Concurrency does not require multiple CPUs.
+- **D. Single-threaded — False**  
+  Concurrency requires multiple execution contexts.
+
+---
+
+## Q29) Race condition (Ch. 26)
+
+A race condition occurs when:
+
+A. Two threads execute in parallel  
+B. Shared data is accessed without synchronization and results depend on timing  
+C. A process waits for I/O  
+D. A thread is preempted by the scheduler  
+
+**Correct answer: B — Shared data + timing dependency**
+
+- **A. Parallel execution — False**  
+  Parallelism alone is insufficient.
+- **B. Timing-dependent shared access — True**  
+  This is the definition of a race condition.
+- **C. Waiting for I/O — False**  
+  Unrelated to races.
+- **D. Preemption — False**  
+  Preemption alone does not cause races.
+
+---
+
+## Q30) Critical section (Ch. 26)
+
+A critical section is:
+
+A. Code executed in kernel mode  
+B. Code that must not be interrupted  
+C. Code that accesses shared data and requires mutual exclusion  
+D. Code that performs I/O  
+
+**Correct answer: C — Shared data + mutual exclusion**
+
+- **A. Kernel mode — False**  
+  Critical sections exist in user space too.
+- **B. Must not be interrupted — False**  
+  Interrupts may occur; exclusion is the key.
+- **C. Shared data + exclusion — True**  
+  Only one thread may execute it at a time.
+- **D. Performs I/O — False**  
+  I/O alone does not define a critical section.
+
+---
+
+## Q31) Locks (Ch. 26)
+
+Correct use of a lock requires that:
+
+A. The lock is acquired after entering the critical section  
+B. The lock is released before entering the critical section  
+C. The lock is acquired before and released after the critical section  
+D. The lock is never released  
+
+**Correct answer: C — Acquire before, release after**
+
+- **A. Acquire after entering — False**  
+  Allows race conditions.
+- **B. Release before entering — False**  
+  Provides no protection.
+- **C. Acquire before, release after — True**  
+  Correct lock discipline.
+- **D. Never released — False**  
+  Causes deadlock.
+
+---
+
+## Q32) User vs kernel mode (Ch. 4)
+
+Which operation **requires** execution in kernel mode?
+
+A. Calling a user-defined function  
+B. Accessing a local variable  
+C. Executing a system call  
+D. Performing arithmetic operations  
+
+**Correct answer: C — Executing a system call**
+
+- **A. Calling a user-defined function — False**  
+  Runs entirely in user mode.
+- **B. Accessing a local variable — False**  
+  Accessing user-space memory does not require privileges.
+- **C. Executing a system call — True**  
+  System calls perform privileged operations and require kernel mode.
+- **D. Performing arithmetic operations — False**  
+  These are normal CPU instructions.
+
+---
+
+## Q33) Context switch cost (Ch. 4)
+
+A context switch is considered expensive mainly because it:
+
+A. Requires disk I/O  
+B. Flushes CPU caches and TLBs  
+C. Terminates the running process  
+D. Changes the scheduling policy  
+
+**Correct answer: B — Flushes CPU caches and TLBs**
+
+- **A. Requires disk I/O — False**  
+  Context switches do not involve disk access.
+- **B. Flushes CPU caches and TLBs — True**  
+  Cache and TLB pollution causes many cache misses, slowing execution.
+- **C. Terminates the running process — False**  
+  The process is only suspended, not terminated.
+- **D. Changes the scheduling policy — False**  
+  Scheduling policy remains unchanged.
+
+---
+
+## Q34) fork() execution flow (Ch. 5)
+
+After a `fork()` call, which statement is correct?
+
+A. Only the parent continues execution  
+B. Only the child continues execution  
+C. Both parent and child continue execution from the next instruction  
+D. The child always runs before the parent  
+
+**Correct answer: C — Both continue execution**
+
+- **A. Only parent — False**  
+  Both processes continue.
+- **B. Only child — False**  
+  Parent also continues.
+- **C. Both continue — True**  
+  Parent and child resume execution after `fork()`.
+- **D. Child runs first — False**  
+  Execution order is determined by the scheduler.
+
+---
+
+## Q35) Orphan process (Ch. 5)
+
+An orphan process is a process whose:
+
+A. Parent is blocked  
+B. Parent has terminated before the child  
+C. Child has terminated before the parent  
+D. Parent is waiting for I/O  
+
+**Correct answer: B — Parent terminated before the child**
+
+- **A. Parent blocked — False**  
+  Parent still exists.
+- **B. Parent terminated — True**  
+  Child is adopted by `init` or `systemd`.
+- **C. Child terminated first — False**  
+  This describes a zombie situation.
+- **D. Parent waiting for I/O — False**  
+  Unrelated.
+
+---
+
+## Q36) Thread creation (Ch. 26)
+
+Compared to process creation, thread creation is typically:
+
+A. Slower due to memory allocation  
+B. Faster because address space is shared  
+C. Impossible without kernel support  
+D. Equivalent in cost  
+
+**Correct answer: B — Faster because address space is shared**
+
+- **A. Slower — False**  
+  Threads avoid address space duplication.
+- **B. Faster — True**  
+  Threads share memory and resources.
+- **C. Impossible without kernel support — False**  
+  User-level threads exist.
+- **D. Equivalent cost — False**  
+  Thread creation is cheaper than process creation.
+
+---
+
+## Q37) Thread cancellation (Ch. 27)
+
+Deferred thread cancellation means that a thread:
+
+A. Is terminated immediately at any point  
+B. Is terminated only when it reaches a cancellation point  
+C. Can never be cancelled  
+D. Cancels other threads automatically  
+
+**Correct answer: B — Cancelled at cancellation points**
+
+- **A. Immediately — False**  
+  That is asynchronous cancellation.
+- **B. At cancellation points — True**  
+  Ensures safe termination.
+- **C. Never cancelled — False**  
+  Cancellation is still possible.
+- **D. Cancels others — False**  
+  Cancellation is per-thread.
+
+---
+
+## Q38) Atomic operations (Ch. 26)
+
+Atomic instructions are important because they:
+
+A. Eliminate the need for scheduling  
+B. Guarantee mutual exclusion without interruption  
+C. Prevent deadlocks  
+D. Always disable interrupts  
+
+**Correct answer: B — Guarantee mutual exclusion**
+
+- **A. Eliminate scheduling — False**  
+  Scheduling still occurs.
+- **B. Guarantee mutual exclusion — True**  
+  Atomic operations cannot be interleaved.
+- **C. Prevent deadlocks — False**  
+  Deadlocks are still possible.
+- **D. Always disable interrupts — False**  
+  Atomicity does not require disabling interrupts.
+
+---
+
+## Q39) Busy waiting (Ch. 26)
+
+Busy waiting occurs when a thread:
+
+A. Sleeps while waiting for an event  
+B. Repeatedly checks a condition while holding the CPU  
+C. Releases the CPU voluntarily  
+D. Waits for I/O completion  
+
+**Correct answer: B — Repeatedly checks a condition**
+
+- **A. Sleeps — False**  
+  Sleeping does not consume CPU.
+- **B. Repeatedly checks — True**  
+  Busy waiting spins on a condition.
+- **C. Releases CPU — False**  
+  Busy waiting keeps the CPU.
+- **D. Waits for I/O — False**  
+  I/O waiting usually blocks.
+
+---
+
+## Q40) Semaphore `wait()` operation (Ch. 26)
+
+Calling `wait()` (P) on a semaphore with value 0 causes the calling thread to:
+
+A. Continue execution  
+B. Decrement the semaphore and continue  
+C. Block until the semaphore becomes positive  
+D. Terminate  
+
+**Correct answer: C — Block until semaphore > 0**
+
+- **A. Continue execution — False**  
+  No resources are available.
+- **B. Decrement and continue — False**  
+  Cannot decrement below zero.
+- **C. Block — True**  
+  Thread sleeps until `signal()` occurs.
+- **D. Terminate — False**  
+  Semaphores do not kill threads.
+
+---
+
+## Q41) Condition variables (Ch. 27)
+
+Condition variables are mainly used to:
+
+A. Replace locks  
+B. Implement busy waiting  
+C. Allow threads to sleep until a condition becomes true  
+D. Schedule processes fairly  
+
+**Correct answer: C — Sleep until condition becomes true**
+
+- **A. Replace locks — False**  
+  Must be used together with locks.
+- **B. Busy waiting — False**  
+  Condition variables avoid busy waiting.
+- **C. Sleep until condition true — True**  
+  Threads sleep efficiently until signaled.
+- **D. Schedule processes — False**  
+  Scheduling is handled by the OS scheduler.
+
+---
 
 
 
