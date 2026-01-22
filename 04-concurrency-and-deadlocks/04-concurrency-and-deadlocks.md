@@ -566,6 +566,365 @@ Thus:
 ---
 ---
 
+## 28.7 Building a Working Spin Lock
+
+### Motivation
+Previous attempts at building locks failed because they relied on **non-atomic operations**:
+- Disabling interrupts works only on **single-CPU systems** and is unsafe.
+- Using a simple shared flag (`while(flag==1)`) fails because **checking and setting are separate steps**.
+
+The core problem:
+> If the scheduler or another CPU interleaves execution between “check” and “set”, **multiple threads can enter the critical section**.
+
+To fix this, we need **hardware support**.
+
+---
+
+### Hardware Support: Test-and-Set (Atomic Exchange)
+
+Modern CPUs provide an **atomic instruction** commonly called:
+- **test-and-set**
+- **atomic exchange**
+
+Conceptually, it performs:
+- Read a memory location
+- Write a new value to it
+- Return the old value  
+**All in one indivisible (atomic) operation**
+
+Key property:
+> No interrupt, context switch, or other CPU can observe an intermediate state.
+
+This atomicity is what allows us to build a **correct lock**.
+
+---
+
+### Idea of a Spin Lock
+
+A spin lock uses:
+- A shared variable `flag`
+  - `0` → lock is free
+  - `1` → lock is held
+
+Lock acquisition:
+- Atomically attempt to set `flag = 1`
+- If the returned old value was `0`, the thread **acquires the lock**
+- If the returned old value was `1`, the thread **keeps trying**
+
+Unlock:
+- Simply set `flag = 0`
+
+Because test-and-set is atomic:
+> **Only one thread can ever change the flag from 0 to 1**
+
+This guarantees **mutual exclusion**.
+
+---
+
+### Why This Lock Is Correct
+
+This approach fixes the earlier correctness bug because:
+- “Test” (is the lock free?)
+- “Set” (mark it as held)
+
+are performed **atomically by hardware**.
+
+As a result:
+- Two threads cannot both believe they acquired the lock
+- Mutual exclusion is guaranteed under any interleaving
+
+---
+
+### Why It Is Called a Spin Lock
+
+If a thread cannot acquire the lock:
+- It does **not sleep**
+- It repeatedly retries in a loop
+- It **spins**, consuming CPU cycles
+
+This leads to performance trade-offs.
+
+---
+
+### Performance Characteristics
+
+#### Single-CPU Systems
+Spin locks are usually **inefficient**:
+- A spinning thread wastes CPU time **A spinning thread wastes CPU time because it repeatedly checks the lock condition while occupying the CPU instead of sleeping**
+- The thread holding the lock may not get scheduled to release it
+- Spin locks require a **preemptive scheduler** to even make sense
+
+Without preemption, a spinning thread can block progress forever.
+
+---
+
+#### Multi-CPU Systems
+Spin locks can be reasonable when:
+- Critical sections are **very short**
+- Lock hold time is minimal
+- Threads run on different CPUs
+
+However:
+- CPU cycles are still wasted while spinning
+- Scalability suffers under high contention
+
+---
+
+### Key Exam Takeaways
+
+- Spin locks are the **simplest correct locks**
+- They rely on **hardware atomic instructions**
+- They guarantee **mutual exclusion**
+- They are:
+  - Simple
+  - Correct
+  - Often inefficient
+
+Spin locks are commonly used:
+- Inside the **OS kernel**
+- For very short critical sections
+
+User-level programs usually prefer:
+- Blocking locks (mutexes) that **sleep instead of spin**
+
+---
+
+### Important Mental Model
+
+When reasoning about locks:
+> Assume a **malicious scheduler** that interrupts threads at the worst possible time.
+
+If the lock still works under that assumption:
+- It is correct
+
+This mindset explains why atomic hardware support is essential for synchronization.
+
+---
+---
+
+## 28.8 Evaluating Spin Locks
+
+This section evaluates **spin locks** using three standard criteria for locks:
+**correctness**, **fairness**, and **performance**.
+
+---
+
+### 1. Correctness
+
+A spin lock is **correct**.
+
+- It enforces **mutual exclusion**
+- At most **one thread** can be in the critical section at any time
+
+From a correctness perspective, the spin lock does its basic job.
+
+> Correctness only asks *“does mutual exclusion hold?”* — not whether the lock is efficient or fair.
+
+---
+
+### 2. Fairness
+
+Spin locks are **not fair**.
+
+- There is **no guarantee** that a waiting thread will ever acquire the lock
+- A thread may spin indefinitely while others repeatedly acquire the lock
+- **Starvation is possible**
+
+Spin locks do not enforce ordering (e.g., FIFO), and thus provide **no fairness guarantees**.
+
+---
+
+### 3. Performance
+
+Performance depends heavily on the **number of CPUs** and **contention pattern**.
+
+---
+
+#### Case A: Single CPU (Poor Performance)
+
+On a single processor, spin locks perform **very poorly**.
+
+Scenario:
+- One thread holds the lock
+- It is **preempted while inside the critical section**
+- Other threads try to acquire the lock
+
+What happens:
+- Each waiting thread **spins for an entire time slice**
+- The lock holder is not running, so **no progress is possible**
+- CPU time is wasted repeatedly checking the lock
+
+Result:
+- Severe waste of CPU cycles
+- Very high overhead
+- Spin locks are a **bad choice on uniprocessor systems**
+
+---
+
+#### Case B: Multiple CPUs (Acceptable Performance)
+
+On multiprocessor systems, spin locks can work **reasonably well**.
+
+Scenario:
+- Thread A holds the lock on CPU 1
+- Thread B spins on CPU 2
+- Critical section is **short**
+
+What happens:
+- Thread A continues running and releases the lock quickly
+- Thread B acquires the lock shortly after
+- Spinning lasts only briefly
+
+Result:
+- Minimal wasted CPU cycles
+- Acceptable performance
+- Spin locks can be effective **if critical sections are short**
+
+---
+
+### Summary Table
+
+| Criterion     | Spin Lock Behavior |
+|---------------|-------------------|
+| Correctness   | Correct (mutual exclusion guaranteed) |
+| Fairness      | Not fair, starvation possible |
+| Performance (1 CPU) | Very poor |
+| Performance (many CPUs) | Reasonable if critical sections are short |
+
+---
+
+### Key Exam Takeaway
+
+Spin locks:
+- **Guarantee mutual exclusion**
+- **Do not guarantee fairness**
+- **Waste CPU time on single-CPU systems**
+- **Can be effective on multiprocessors with short critical sections**
+
+---
+---
+
+## 28.9 Compare-And-Swap (CAS) and Load-Linked / Store-Conditional
+
+### Motivation
+Earlier lock attempts using a simple flag failed because **checking** and **setting** the lock were separate operations.  
+With unlucky interleavings, multiple threads could enter the critical section at the same time.  
+To fix this, we need **hardware support for atomic operations**.
+
+---
+
+## Compare-And-Swap (CAS)
+
+### Core Idea
+Compare-and-swap is a **hardware atomic instruction** that:
+- Checks whether a memory location has an expected value
+- Updates it to a new value **only if** the check succeeds
+- Performs both steps **atomically**
+
+This prevents any interleaving between the check and the update.
+
+---
+
+### Conceptual Behavior
+CAS takes three inputs:
+1. Memory location (e.g., lock flag)
+2. Expected value (e.g., `0`)
+3. New value (e.g., `1`)
+
+Atomic logic:
+- If `*ptr == expected` → write `new`
+- Otherwise → do nothing
+- Always return the old value
+
+The return value tells the caller whether the operation succeeded.
+
+---
+
+### CAS Used for a Spin Lock
+- If the lock is free (`flag == 0`), CAS changes it to `1` and the thread enters the critical section
+- If the lock is held (`flag == 1`), CAS fails and the thread keeps spinning
+- Unlocking simply resets the flag
+
+**Correctness:**  
+Only one thread can successfully change `0 → 1`, guaranteeing mutual exclusion.
+
+---
+
+### Why CAS Is Better Than Test-and-Set
+- Test-and-set always writes to memory, even when the lock is held
+- CAS writes **only when the lock is actually acquired**
+- This reduces unnecessary cache traffic
+
+CAS is powerful enough to build:
+- Correct spin locks
+- Lock-free data structures
+
+---
+
+### Limitations of CAS Spin Locks
+- Still uses **busy waiting**
+- No fairness guarantees
+- Can waste CPU cycles under contention
+
+CAS fixes **correctness**, not **efficiency**.
+
+---
+
+## Load-Linked / Store-Conditional (LL/SC)
+
+### Motivation
+CAS still repeatedly retries blindly.  
+LL/SC provides a cleaner way to conditionally update memory.
+
+---
+
+### How LL/SC Works
+
+**Load-Linked (LL):**
+- Reads a memory location
+- Hardware records that the location was accessed
+
+**Store-Conditional (SC):**
+- Attempts to write a new value
+- Succeeds **only if no other CPU modified the location** since the LL
+- Returns success or failure
+
+If another CPU writes to the location:
+- SC fails
+- The thread retries
+
+---
+
+### Why LL/SC Is Powerful
+- Avoids unnecessary writes
+- Scales better on multiprocessors
+- Preferred by many RISC architectures
+
+LL/SC is often used as the foundation for advanced synchronization primitives.
+
+---
+
+## Big Picture Comparison
+
+| Mechanism | Mutual Exclusion | Fairness | Performance |
+|---------|------------------|----------|-------------|
+| Simple flag | ❌ No | ❌ No | ❌ Bad |
+| Test-and-set | ✅ Yes | ❌ No | ⚠️ Wasteful |
+| CAS | ✅ Yes | ❌ No | ⚠️ Better |
+| LL/SC | ✅ Yes | ❌ No | ✅ Better |
+
+---
+
+## Key Exam Takeaways
+- **Atomic hardware instructions are required for correct locks**
+- CAS and LL/SC fix correctness by preventing interleavings
+- Spin locks still waste CPU cycles
+- This motivates later designs: sleeping locks, futexes, and hybrid locks
+
+---
+---
+
+
 
 
 
