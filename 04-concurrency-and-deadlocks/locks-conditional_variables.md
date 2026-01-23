@@ -1873,6 +1873,731 @@ Then you are **exam-ready** for this chapter.
 ---
 ---
 
+# Chapter 30 — Condition Variables (Exam-Oriented Notes)
 
+## Why Condition Variables Exist
 
+Locks solve **mutual exclusion**, but they do **not** solve the problem of **waiting efficiently** for something to happen.
 
+A very common pattern in concurrent programs is:
+- A thread must **wait until a condition becomes true** before continuing.
+- Example: a parent thread waiting for a child thread to finish.
+
+Using a simple shared variable and spinning in a loop:
+- Wastes CPU cycles (busy-waiting)
+- Scales poorly
+- Can be incorrect on a single CPU system
+
+**Condition variables exist to solve this exact problem.**
+
+---
+
+## The Core Problem (The Crux)
+
+> Spinning until a condition becomes true is grossly inefficient and sometimes incorrect.
+
+The correct solution is to **put the thread to sleep** until the condition becomes true.
+
+---
+
+## What Is a Condition Variable?
+
+A **condition variable** is:
+- An explicit **queue of sleeping threads**
+- Used when a thread wants to wait for some condition to become true
+- Another thread, after changing shared state, can **wake up** waiting threads
+
+Important:
+- Threads do **not** wait for the condition variable itself  
+- Threads wait for a **condition on shared state**, protected by a lock
+
+---
+
+## Relationship Between Locks and Condition Variables
+
+Condition variables **always work together with a lock**.
+
+Roles:
+- **Lock**: protects shared state
+- **Condition variable**: manages sleeping and waking of threads
+- **State variable** (e.g., `done`): represents the actual condition
+
+Condition variables do **not** store state.
+
+---
+
+## The Two Fundamental Operations
+
+### wait()
+
+- Called when a thread cannot proceed
+- Atomically:
+  1. Releases the associated lock
+  2. Puts the thread to sleep
+- When awakened:
+  - Re-acquires the lock
+  - Returns to the caller
+
+Why atomic?
+- To avoid race conditions where a signal is missed
+
+---
+
+### signal()
+
+- Called when a thread changes shared state
+- Wakes **one** sleeping thread (if any)
+- If no thread is sleeping, the signal is **lost**
+
+Key exam fact:
+> Condition variable signals are **not remembered**.
+
+---
+
+## Why wait() Requires a Lock
+
+When a thread calls `wait()`:
+- It must already hold the lock
+- `wait()` releases the lock **and sleeps atomically**
+- When the thread wakes up, it **re-acquires the lock before returning**
+
+This prevents a classic race condition:
+- A signal occurring between checking the condition and going to sleep
+
+---
+
+## Why Waiting Must Be in a `while` Loop (Not `if`)
+
+Correct pattern:
+- Always re-check the condition after waking up
+
+Reasons:
+- Spurious wakeups can occur
+- Multiple threads may be awakened
+- The condition may no longer be true when the thread runs again
+
+**Exam rule to memorize:**
+> Always wait in a `while` loop, never an `if`.
+
+---
+
+## Correct Mental Model (Very Important)
+
+Think in three parts:
+1. **State variable** — what condition you care about
+2. **Lock** — protects the state variable
+3. **Condition variable** — manages sleeping and waking
+
+Condition variables do **not** replace locks.
+
+---
+
+## Scheduling Perspective (Exam Connection)
+
+- A thread that calls `wait()`:
+  - Moves to **BLOCKED**
+- A thread that is signaled:
+  - Moves to **READY**
+- CPU scheduling decides when it runs again
+
+This links directly to:
+- Process states
+- Scheduling policies
+- Blocking vs spinning
+
+---
+
+## Comparison With Spin Waiting
+
+| Spin Waiting | Condition Variables |
+|--------------|---------------------|
+| Wastes CPU time | No CPU wasted |
+| Bad on single CPU | Works well on single CPU |
+| Simple but inefficient | Slightly more complex but correct |
+| Can starve threads | Can be made fair |
+
+---
+
+## Common Exam Traps
+
+- Thinking condition variables store state (they do not)
+- Using `if` instead of `while`
+- Calling `signal()` without holding the lock
+- Forgetting that signals are lost if no thread is waiting
+- Assuming condition variables eliminate the need for locks
+
+---
+
+## One-Sentence Exam Summary
+
+> Condition variables allow threads to sleep efficiently until a shared condition becomes true, avoiding busy-waiting and preventing race conditions when used correctly with locks.
+
+---
+---
+
+## 30.2 The Producer/Consumer (Bounded Buffer) Problem
+
+### What is the Producer/Consumer Problem?
+
+- Also called the **bounded buffer problem**
+- First posed by **Dijkstra**
+- Motivated the invention of **semaphores**
+- Models a very common synchronization pattern:
+  - **Producers** generate data and place it into a shared buffer
+  - **Consumers** remove data from the buffer and process it
+- The buffer has **limited capacity** (bounded)
+
+---
+
+### Real-World Examples (Exam-Focused)
+
+- **Multithreaded web servers**
+  - Producer: thread that accepts HTTP requests
+  - Buffer: work queue
+  - Consumer: worker threads handling requests
+- **UNIX pipes**
+  - Example: `grep foo file.txt | wc -l`
+  - `grep` = producer
+  - `wc` = consumer
+  - Kernel pipe = bounded buffer
+
+---
+
+### Why Synchronization Is Needed
+
+- The buffer is a **shared resource**
+- Without synchronization:
+  - Race conditions occur
+  - Producers may overwrite data
+  - Consumers may read invalid or missing data
+- Correctness conditions:
+  - Producer must **not write** if buffer is full
+  - Consumer must **not read** if buffer is empty
+
+---
+
+## First Attempts and Why They Fail
+
+### Version 1: No Synchronization
+
+- Producer and consumer directly access buffer
+- Works only by accident
+- **Race conditions guaranteed**
+
+---
+
+### Version 2: Lock Only (Still Broken)
+
+- Put a mutex around buffer access
+- Problem:
+  - Lock alone cannot express *when* a thread should wait
+  - Threads still need to wait for **conditions** (empty/full)
+- Conclusion:
+  - **Locks are not enough**
+  - We need **condition variables**
+
+---
+
+## Condition Variables Refresher
+
+- Condition variables allow threads to:
+  - Sleep until a **condition becomes true**
+  - Be woken up when another thread changes state
+- Key operations:
+  - `wait()` → sleep and release lock atomically
+  - `signal()` → wake one waiting thread
+- Important rule:
+  - A signal is only a *hint* that state may have changed
+
+---
+
+## Broken Solution #1: Single Condition Variable + `if`
+
+### What Goes Wrong?
+
+- One condition variable used for:
+  - Buffer empty
+  - Buffer full
+- Threads use `if` before waiting
+
+### Why This Is Broken
+
+- With **multiple consumers**:
+  - One consumer wakes up
+  - Another consumer may steal the data
+  - The first consumer resumes and finds buffer empty
+- Result:
+  - Assertion failures
+  - Incorrect behavior
+
+### Root Cause
+
+- **Mesa semantics**
+  - A signaled thread does **not** run immediately
+  - State may change before it runs
+- Therefore:
+  - The condition must always be re-checked
+
+---
+
+## Fix #1: Use `while`, Not `if`
+
+### Key Rule
+
+> **Always use `while` when waiting on a condition variable**
+
+- After waking:
+  - Re-check the condition
+  - If false → sleep again
+
+### Why This Works
+
+- Handles:
+  - Lost wakeups
+  - Scheduling delays
+  - State changes by other threads
+
+---
+
+## Still Broken: Single Condition Variable
+
+Even with `while`, a single condition variable is **not enough**.
+
+### Problem Scenario
+
+- Two consumers sleep (buffer empty)
+- Producer produces one item
+- Producer signals
+- Consumer wakes, consumes, signals
+- But wakes **another consumer**, not the producer
+- Result:
+  - All threads go to sleep
+  - **Deadlock**
+
+### Root Cause
+
+- Condition variable does not encode *who* should wake up
+- Consumers should wake producers
+- Producers should wake consumers
+
+---
+
+## Correct Solution: Two Condition Variables
+
+### Design
+
+- Use **two condition variables**:
+  - `empty` → buffer has space
+  - `fill` → buffer has data
+
+### Rules
+
+- Producers:
+  - Wait on `empty`
+  - Signal `fill`
+- Consumers:
+  - Wait on `fill`
+  - Signal `empty`
+
+### Why This Works
+
+- Correct thread type is always woken
+- Eliminates deadlock
+- Handles multiple producers and consumers
+
+---
+
+## Final General Solution (Bounded Buffer with Size > 1)
+
+### Improvements
+
+- Buffer holds multiple items
+- Use:
+  - `count` → number of items
+  - Circular buffer indices
+- Conditions:
+  - Producer waits if `count == MAX`
+  - Consumer waits if `count == 0`
+
+### Benefits
+
+- Higher concurrency
+- Fewer context switches
+- Better performance under load
+
+---
+
+## Mesa vs Hoare Semantics
+
+### Mesa Semantics (Used in Practice)
+
+- Signal only wakes a thread
+- Woken thread runs later
+- Condition may no longer hold
+- **Requires `while`**
+
+### Hoare Semantics (Theoretical)
+
+- Woken thread runs immediately
+- Condition guaranteed true
+- Hard to implement
+- Rarely used
+
+> Virtually all real systems use Mesa semantics
+
+---
+
+## Spurious Wakeups
+
+- Threads may wake up **without any signal**
+- Happens due to implementation details
+- Another reason to **always re-check condition in a while loop**
+
+---
+
+## Golden Rules for the Exam
+
+1. Condition variables **do not store state**
+2. Shared state must be protected by a **mutex**
+3. Always:
+   - Lock
+   - Check condition in `while`
+   - `wait`
+   - Re-check
+4. Always hold the lock when:
+   - Calling `wait`
+   - Calling `signal`
+5. Use **separate condition variables** for logically different conditions
+6. `signal()` is a hint, **not a guarantee**
+
+---
+
+## Connections to Other Chapters
+
+- **Locks (Chapter 28)**  
+  Condition variables extend locks by enabling waiting on conditions
+- **Semaphores**  
+  Can encode both mutual exclusion and condition waiting
+- **Scheduling**  
+  Incorrect signaling leads to starvation and deadlock
+- **Operating Systems**  
+  Pipes, sockets, and I/O queues internally use producer/consumer patterns
+
+---
+---
+
+## 30.3 Covering Conditions
+
+This section addresses a subtle but important problem when using **condition variables**:  
+**which waiting thread should be woken up when a condition changes?**
+
+### The Problem Motivation
+
+The example comes from **Lampson and Redell** and is based on a **memory allocation scenario**:
+
+- Multiple threads may be waiting for **different conditions** on the same shared state.
+- A single `signal()` may wake the *wrong* thread.
+- That thread wakes up, rechecks the condition, finds it still false, and goes back to sleep.
+- Meanwhile, another thread *could* have proceeded, but never got woken up.
+
+This leads to **lost progress**, even though the program is logically correct.
+
+---
+
+### Example Scenario (Conceptual)
+
+- Available memory = `0`
+- Thread **Tₐ** calls `allocate(100)` → sleeps
+- Thread **Tᵦ** calls `allocate(10)` → sleeps
+- Thread **T𝒸** calls `free(50)`
+
+Now:
+- **Tᵦ** *should* wake up (needs only 10 bytes)
+- **Tₐ** should remain asleep (needs 100 bytes)
+
+However:
+- A single `signal()` may wake **Tₐ** instead of **Tᵦ**
+- **Tₐ** rechecks condition → still false → sleeps again
+- **Tᵦ** never wakes → system makes no progress
+
+---
+
+### Why This Happens
+
+- `signal()` wakes **one arbitrary waiting thread**
+- The signaling thread does **not know**:
+  - which threads are waiting
+  - which conditions they are waiting for
+- With **Mesa semantics**, waking a thread only means:
+  > “Something *might* have changed — recheck the condition”
+
+There is **no guarantee** the awakened thread can proceed.
+
+---
+
+### The Solution: Covering Conditions
+
+**Replace `signal()` with `broadcast()`**
+
+- `pthread_cond_broadcast()` wakes **all waiting threads**
+- Each awakened thread:
+  - re-acquires the lock
+  - re-checks its condition (using a `while` loop)
+  - proceeds if possible, otherwise sleeps again
+
+This guarantees:
+- Any thread that *can* make progress **will** make progress
+
+---
+
+### Trade-offs
+
+**Pros**
+- Correctness guaranteed
+- No missed wakeups
+- Simple and robust
+
+**Cons**
+- Performance overhead:
+  - Many threads may wake up unnecessarily
+  - All but one may go back to sleep immediately
+- Acceptable when correctness is more important than efficiency
+
+---
+
+### Key Term: Covering Condition
+
+A **covering condition** is a condition variable used to conservatively wake *all* potentially interested threads, ensuring that no thread that should run remains asleep.
+
+---
+
+### Exam-Oriented Takeaways
+
+- Use `broadcast()` when:
+  - You cannot precisely determine which thread should wake
+  - Multiple different conditions are associated with the same CV
+- If your program only works with `broadcast()` but not `signal()`:
+  - You probably have a **bug**, not a performance issue
+- Always combine covering conditions with:
+  - **`while` loops**
+  - **Mesa semantics**
+
+---
+
+### Connection to Earlier Topics
+
+- Reinforces why **`while`, not `if`**, must be used with condition variables
+- Shows a limitation of condition variables compared to:
+  - **Semaphores** (which encode resource counts explicitly)
+- Mirrors issues seen earlier with:
+  - Producer/Consumer using a single CV
+  - Incorrect wakeups and missed signals
+
+---
+
+### Rule of Thumb (Very Exam-Friendly)
+
+> If you are unsure which waiting thread should wake up, **wake them all**.
+
+This may be slower, but it is always correct.
+
+---
+---
+
+# Chapter 30 — Condition Variables (Exam Summary)
+
+## 1) Why condition variables exist (the problem they solve)
+- Sometimes a thread **must wait until a condition becomes true** before it can continue.
+  - Example: `join()` — parent should wait until the child thread finishes.
+- A naive approach is **spinning** (busy-waiting) on a shared variable:
+  - Works sometimes, but is **wasteful** (burns CPU).
+  - Can be **incorrect** because of races (missed wakeups).
+
+**Goal:** wait efficiently by **sleeping**, then be **woken** when the condition becomes true.
+
+---
+
+## 2) What a condition variable is
+- A **condition variable (CV)** is a mechanism that lets threads:
+  - **sleep** while waiting for a condition
+  - be **woken** when another thread changes state and signals that condition
+
+### Core operations (POSIX names)
+- `wait(cv, mutex)`  
+- `signal(cv)` (wake one waiter)
+- `broadcast(cv)` (wake all waiters)
+
+(You can think of them as `wait()` and `signal()` in simplified notation.)
+
+---
+
+## 3) The key rule: CVs must be used with a mutex (lock)
+### `wait(cv, mutex)` semantics (super exam-important)
+When a thread calls `wait(cv, mutex)`:
+1. The **mutex must already be held** by the calling thread.
+2. `wait` does two things **atomically**:
+   - releases the mutex
+   - puts the thread to sleep on the CV
+3. When the thread is woken:
+   - it **re-acquires the mutex**
+   - then `wait` returns
+
+**Why the atomic release+sleep matters:** prevents the classic **wakeup/waiting race** (missed signal → sleep forever).
+
+---
+
+## 4) The state variable pattern (the “right” structure)
+A CV is **not** the condition itself. The condition is represented by a **shared state variable**.
+
+Correct pattern:
+- Shared state variable (e.g., `done`, `count`, `bytesLeft`)
+- Protect it with a mutex
+- Wait in a loop until the state indicates “OK to proceed”
+- Update state and signal while holding the mutex
+
+### Join example (concept)
+- `done` is the state variable.
+- Child sets `done = 1` and signals.
+- Parent:
+  - locks mutex
+  - while `done == 0`: wait(cv, mutex)
+  - unlock mutex
+  - continue
+
+---
+
+## 5) Two classic bugs (very exam-likely)
+### Bug A: No state variable (signal can be “lost”)
+If child signals before parent starts waiting:
+- signal wakes **nobody**
+- parent later waits and **sleeps forever**
+
+Fix: use a **state variable** like `done`.
+
+### Bug B: Not holding the lock correctly (race)
+If the parent checks `done`, then gets interrupted **before calling wait**, and the child sets `done` + signals:
+- signal is missed
+- parent then calls wait and can sleep forever
+
+Fix: hold the mutex while checking state and calling wait, so check+sleep is safe.
+
+---
+
+## 6) “Always use while, not if” (Mesa semantics + spurious wakeups)
+### Why `while(condition false) wait(...)` is the safe rule
+In real systems, most CVs use **Mesa semantics**:
+- `signal` is only a hint: “the condition *might* be true now”
+- the awakened thread does **not** run immediately
+- by the time it runs, another thread may have changed the state again
+
+So after wakeup:
+- you **must re-check** the condition under the lock
+
+Also: **spurious wakeups** can occur (thread wakes even without the desired condition).
+- `while` handles this safely; `if` can break correctness.
+
+**Exam line:**  
+- `if` can cause a thread to proceed when the condition is not actually true.
+- `while` re-check prevents that.
+
+---
+
+## 7) Producer/Consumer (Bounded Buffer): why it’s tricky
+### Setup
+- Producers put items into a buffer.
+- Consumers take items out.
+- There is shared state: `count` (how full the buffer is), and buffer slots.
+
+### Invariants (must never break)
+- Producer can `put()` only if buffer **not full**
+- Consumer can `get()` only if buffer **not empty**
+
+### Broken solution 1: one CV + `if` check
+- With multiple consumers/producers, wakeups + timing can cause:
+  - a consumer wakes, but another consumer grabs the only item first
+  - awakened consumer proceeds and tries to `get()` from empty buffer
+
+Fix part 1: replace `if` with `while`.
+
+---
+
+## 8) Still broken: one CV even with while (wrong thread can wake)
+Even with `while`, if there is only **one CV**, signaling may wake the wrong type:
+- A consumer empties buffer and signals
+- It might wake another consumer (who then immediately sleeps again)
+- A producer that should run remains asleep
+- Can lead to everyone sleeping (deadlock-like “all asleep” situation)
+
+Fix: use **two CVs**:
+- `empty` (producers wait here when buffer is full)
+- `fill` (consumers wait here when buffer is empty)
+
+Rule:
+- Producer waits on `empty`, signals `fill`
+- Consumer waits on `fill`, signals `empty`
+
+---
+
+## 9) Final bounded-buffer solution structure (concept)
+Shared state:
+- `count` (0..MAX)
+- indices like `fill_ptr`, `use_ptr` (circular buffer idea)
+
+Producer:
+- lock
+- while `count == MAX`: wait(empty, mutex)
+- put item; `count++`
+- signal(fill)
+- unlock
+
+Consumer:
+- lock
+- while `count == 0`: wait(fill, mutex)
+- get item; `count--`
+- signal(empty)
+- unlock
+
+Why it’s good:
+- correct
+- avoids wasteful spinning
+- scales better
+- avoids waking the wrong type
+
+---
+
+## 10) Covering conditions (when to broadcast)
+### Problem
+Sometimes you don’t know which waiter should wake.
+Example (memory allocator):
+- Thread A waiting for 100 bytes
+- Thread B waiting for 10 bytes
+- Free 50 bytes happens
+- If you signal and wake A, A still can’t proceed; B should have been woken.
+
+### Solution: `broadcast`
+- Wake all waiting threads.
+- Each re-checks the condition under the lock.
+- Only the ones whose condition is now true proceed; the rest sleep again.
+
+Tradeoff:
+- Correctness is easier
+- But can cause performance overhead (“thundering herd”)
+
+**Exam hint:**
+- If your program only works when you change `signal` to `broadcast`, you likely had a bug in your signaling logic (or you truly needed a covering condition).
+
+---
+
+## 11) Exam traps checklist
+- CV is not the condition → you need a **state variable**.
+- `wait(cv, mutex)` must:
+  - be called with lock held
+  - atomically release lock + sleep
+  - re-acquire lock before returning
+- Always use **while**, not **if**:
+  - Mesa semantics
+  - spurious wakeups
+- One CV is often not enough for producer/consumer:
+  - use **two CVs** to avoid waking the wrong class of thread
+- `broadcast` is for covering conditions:
+  - correctness first, performance cost
