@@ -973,3 +973,784 @@ they are about **thinking correctly under concurrency**.
 ---
 ---
 
+## Deadlocks (Exam-Oriented Summary)
+
+### What is a Deadlock?
+
+A **deadlock** is a situation in a concurrent system where a set of threads or processes are **permanently blocked** because each one is **waiting for a resource held by another**, and none of them can ever make progress.
+
+**Key idea (exam-friendly):**
+
+> **Deadlock = circular waiting with no possible progress.**
+
+---
+
+### The Four Necessary Conditions for Deadlock
+
+All four conditions **must hold at the same time** for a deadlock to occur.  
+This is classic exam material.
+
+1. **Mutual Exclusion**
+   - Resources cannot be shared.
+   - Only one thread can hold a resource (e.g., a lock) at a time.
+
+2. **Hold and Wait**
+   - A thread holds at least one resource while waiting to acquire another.
+
+3. **No Preemption**
+   - Resources cannot be forcibly taken away.
+   - A thread must release a resource voluntarily.
+
+4. **Circular Wait**
+   - There exists a cycle of threads:
+     - T₁ waits for a resource held by T₂
+     - T₂ waits for a resource held by T₃
+     - …
+     - Tₙ waits for a resource held by T₁
+
+If **any one** of these conditions is broken, **deadlock cannot occur**.
+
+---
+
+### Simple Deadlock Example (Conceptual)
+
+- **Thread A**
+  - Holds Lock L1
+  - Waits for Lock L2
+
+- **Thread B**
+  - Holds Lock L2
+  - Waits for Lock L1
+
+Both threads wait forever → **deadlock**.
+
+---
+
+### Deadlock vs Non-Deadlock Bugs
+
+From real-world studies (e.g., Figure 32.1):
+
+- **Non-deadlock bugs** (more common):
+  - Race conditions
+  - Atomicity violations
+  - Order violations
+  - Incorrect signaling
+  - Threads still run, but results are wrong
+
+- **Deadlock bugs**:
+  - System makes **no progress**
+  - Threads are stuck forever
+  - Often harder to debug
+  - Fewer in number, but more severe
+
+---
+
+### Why Deadlocks Are Dangerous
+
+- CPU usage may drop to zero
+- Program appears frozen
+- No thread can recover on its own
+- Often requires killing the program or rebooting
+
+---
+
+### How Deadlocks Are Handled (High-Level)
+
+1. **Deadlock Prevention**
+   - Break one of the four necessary conditions
+   - Example: enforce a global lock ordering (break circular wait)
+
+2. **Deadlock Avoidance**
+   - Careful resource allocation decisions
+   - Rarely used in general-purpose systems
+
+3. **Deadlock Detection and Recovery**
+   - Detect cycles and kill threads or processes
+   - Used in some databases
+
+4. **Ignore the Problem**
+   - Assume deadlocks are rare
+   - Most general-purpose operating systems take this approach
+
+---
+
+### Connections to Other Chapters
+
+- **Locks (Chapter 28)**
+  - Incorrect lock ordering can cause deadlock
+
+- **Condition Variables (Chapter 30)**
+  - Sleeping while holding a lock can lead to deadlock
+
+- **Semaphores (Chapter 31)**
+  - Wrong order of `wait()` calls can cause deadlock
+
+- **Dining Philosophers**
+  - Canonical deadlock example
+
+---
+---
+
+# Chapter 32 — Common Concurrency Problems (Exam-Oriented Summary)
+
+This chapter focuses on **real concurrency bugs found in real systems**, not just theoretical problems. The key idea is that concurrency bugs tend to follow **recurring patterns**, and recognizing these patterns is crucial for both **debugging** and **exam questions**.
+
+---
+
+## Big Picture
+
+Concurrency bugs fall into **two major classes**:
+
+1. **Non-deadlock bugs** (majority)
+2. **Deadlock bugs**
+
+A large empirical study (Lu et al.) of real systems (MySQL, Apache, Mozilla, OpenOffice) showed:
+- **Most concurrency bugs are NOT deadlocks**
+- **Atomicity violations and order violations dominate**
+
+This is important for exams: **don’t assume deadlock unless clearly stated**.
+
+---
+
+## 1. What Is a Deadlock?
+
+A **deadlock** occurs when:
+- Two or more threads/processes
+- Each holds a resource
+- Each waits for a resource held by another
+- No one can make progress
+
+Classic deadlock conditions (often asked):
+1. Mutual exclusion  
+2. Hold and wait  
+3. No preemption  
+4. Circular wait  
+
+If all four hold → deadlock is possible.
+
+---
+
+## 2. Non-Deadlock Bugs (Most Common)
+
+### Two main types:
+1. **Atomicity-Violation Bugs**
+2. **Order-Violation Bugs**
+
+Together they account for ~97% of non-deadlock bugs in practice.
+
+---
+
+## 3. Atomicity-Violation Bugs
+
+### What it is
+A code region is **assumed to execute atomically**, but **is not actually protected**, allowing interleaving that breaks correctness.
+
+### Typical pattern
+- Thread 1 checks a condition
+- Thread 2 modifies shared state
+- Thread 1 continues assuming state is unchanged
+
+### Key insight
+> “Check-then-use” without proper locking is dangerous.
+
+### Why it happens
+- Programmer assumes a sequence is atomic
+- Scheduler interrupts at the worst possible moment
+
+### How to fix
+- Protect the entire region with a **lock**
+- Ensure **all accesses** to the shared variable use the same lock
+
+### Exam tip
+If you see:
+- `if (x != NULL)` followed later by using `x`
+- And another thread can modify `x`
+
+→ **Atomicity violation**
+
+---
+
+## 4. Order-Violation Bugs
+
+### What it is
+Two operations must happen in a **specific order**, but **no synchronization enforces that order**.
+
+### Typical pattern
+- Thread A initializes something
+- Thread B assumes it is already initialized
+- Scheduler allows B to run first
+
+### Key insight
+> Correctness depends on execution order, but order is not enforced.
+
+### How to fix
+- Use **condition variables or semaphores**
+- Introduce an explicit **state variable**
+- One thread signals, the other waits
+
+### Exam tip
+If correctness depends on:
+- “A must happen before B”
+- And there is no wait/signal or semaphore
+
+→ **Order violation**
+
+---
+
+## 5. Atomicity vs Order Violations (Compare)
+
+| Aspect | Atomicity Violation | Order Violation |
+|------|--------------------|----------------|
+| Core issue | Non-atomic region | Missing ordering |
+| Typical symptom | Crash / inconsistent data | Use before init |
+| Fix | Lock the region | Enforce order (CV / semaphore) |
+| Common pattern | Check-then-use | Init-then-use |
+
+---
+
+## 6. Deadlock Bugs (Brief)
+
+Deadlocks are **less frequent** but **more catastrophic**.
+
+Common causes:
+- Inconsistent lock acquisition order
+- Holding locks while waiting on conditions
+- Overly large critical sections
+
+Deadlocks are discussed further in later chapters, but **this chapter emphasizes recognition**, not prevention strategies.
+
+---
+
+## 7. Why This Chapter Matters for Exams
+
+Exams often:
+- Show **short code snippets**
+- Ask “what kind of bug is this?”
+- Expect you to classify:
+  - Atomicity violation
+  - Order violation
+  - Deadlock
+
+You are rarely asked to write code — you are asked to **identify the bug pattern**.
+
+---
+
+## 8. Mental Checklist for Exam Questions
+
+Ask yourself:
+1. Is shared data accessed without a lock? → atomicity violation
+2. Does correctness depend on execution order? → order violation
+3. Are threads waiting on each other in a cycle? → deadlock
+4. Is a condition checked with `if` instead of `while`? → potential race
+
+---
+
+## Final Takeaway
+
+> Concurrency bugs are not random — they are patterned.
+
+If you can **recognize the pattern**, you can:
+- Answer exam questions quickly
+- Reason correctly about concurrent code
+- Avoid these bugs in real systems
+
+This chapter is about **thinking**, not coding.
+
+---
+---
+
+## 32.2 Non-Deadlock Bugs
+
+Most concurrency bugs in real systems are **not deadlocks**.  
+According to Lu et al., about **97% of non-deadlock concurrency bugs** fall into **two main categories**:
+
+1. **Atomicity-violation bugs**
+2. **Order-violation bugs**
+
+Understanding these two patterns is critical for exams and real systems.
+
+---
+
+## Atomicity-Violation Bugs
+
+### Definition
+An **atomicity violation** occurs when a sequence of operations is **intended to be atomic**, but the program **does not enforce atomicity**, allowing another thread to interleave and break correctness.
+
+Formal idea:
+> A code region is intended to be atomic, but atomicity is not enforced during execution.
+
+---
+
+### Typical Pattern
+- A thread **checks a condition**
+- Then **acts based on that condition**
+- Another thread **modifies the shared state in between**
+
+This is often called a **check-then-act race**.
+
+---
+
+### Common Symptoms
+- NULL-pointer dereference
+- Crash after a “safe” check
+- Data corruption
+- Bugs that appear only under concurrency
+
+---
+
+### Root Cause
+- Missing mutual exclusion
+- Shared variable accessed without a lock
+- Programmer assumes atomicity instead of enforcing it
+
+---
+
+### Fix
+- Protect the **entire sequence** with a lock
+- All threads accessing the shared variable must use the **same mutex**
+
+**Key exam phrase:**  
+> Enforce atomicity by guarding all accesses with a lock.
+
+---
+
+## Order-Violation Bugs
+
+### Definition
+An **order violation** occurs when a program **assumes a specific execution order** between threads, but the system does **not guarantee that order**.
+
+Formal idea:
+> Operation A is assumed to occur before operation B, but the ordering is not enforced.
+
+---
+
+### Typical Pattern
+- One thread initializes data
+- Another thread assumes the data is ready
+- The second thread runs first and accesses invalid data
+
+---
+
+### Common Symptoms
+- Reading uninitialized variables
+- NULL-pointer dereference
+- “Works most of the time” bugs
+
+---
+
+### Root Cause
+- Thread creation does **not** imply execution order
+- No synchronization enforcing a happens-before relationship
+
+---
+
+### Fix
+- Explicitly enforce ordering using synchronization
+- Common solutions:
+  - Condition variables
+  - Semaphores
+
+Typical structure:
+- One thread sets a state variable
+- Signals
+- Other thread waits in a loop until the state changes
+
+**Key exam phrase:**  
+> Ordering must be explicitly enforced using synchronization primitives.
+
+---
+
+## Exam Takeaways
+
+- Most concurrency bugs are **non-deadlock bugs**
+- Two dominant patterns:
+  - **Atomicity violations** → missing mutual exclusion
+  - **Order violations** → missing synchronization for ordering
+- Fix strategy:
+  - Atomicity problems → locks
+  - Ordering problems → condition variables or semaphores
+- Any **check-then-act** sequence without a lock is suspicious
+
+---
+--- 
+
+## 32.3 Deadlock Bugs — Exam-Oriented Summary
+
+### What Is a Deadlock?
+A **deadlock** occurs when a set of threads are **blocked forever**, because each thread is waiting for a resource that is held by another thread in the same set.
+
+Classic example:
+- Thread 1 holds lock **L1** and waits for **L2**
+- Thread 2 holds lock **L2** and waits for **L1**
+→ No thread can proceed.
+
+Important: deadlock is often **schedule-dependent**.  
+The same code may work sometimes and deadlock at other times, depending on timing and context switches.
+
+---
+
+### Deadlock Dependency Graph
+Deadlock situations can be represented using a **dependency (wait-for) graph**:
+- Nodes represent threads and/or locks
+- Edges represent:
+  - a thread **holding** a lock
+  - a thread **waiting for** a lock
+
+**Key rule**:
+- If the graph contains a **cycle**, a deadlock is present (or possible).
+
+---
+
+### Why Deadlocks Occur in Real Systems
+
+#### 1. Complex dependencies
+In large systems (e.g., OS kernels):
+- Subsystems call each other (virtual memory, file system, etc.)
+- Locks are acquired across layers
+- Circular dependencies arise naturally unless carefully designed
+
+#### 2. Encapsulation hides locking behavior
+- APIs may internally acquire multiple locks
+- Callers cannot see lock ordering
+- Example: two threads calling methods that lock objects in opposite orders
+→ hidden deadlock risk
+
+---
+
+### Necessary Conditions for Deadlock
+A deadlock can occur **only if all four conditions hold simultaneously**:
+
+1. **Mutual exclusion**  
+   Resources cannot be shared (e.g., locks).
+
+2. **Hold-and-wait**  
+   Threads hold at least one resource while waiting for others.
+
+3. **No preemption**  
+   Resources cannot be forcibly taken away.
+
+4. **Circular wait**  
+   A cycle exists where each thread waits for a resource held by the next.
+
+**Exam rule**:  
+If **any one** of these conditions is broken, deadlock is impossible.
+
+---
+
+## Techniques to Handle Deadlock
+
+### 1. Deadlock Prevention
+Break one of the four conditions.
+
+#### A. Prevent circular wait (most practical)
+- Impose a **global lock ordering**
+- Always acquire locks in the same order
+
+Example:
+- Always acquire **L1 before L2**
+
+Partial ordering is used in complex systems (groups of locks).
+
+**Exam tip**: One violation of the ordering rule can reintroduce deadlock.
+
+##### Ordering by lock address
+- Acquire locks in increasing (or decreasing) address order
+- Ensures consistent ordering even when function arguments vary
+
+---
+
+#### B. Prevent hold-and-wait
+- Acquire **all required locks at once**, atomically
+- Often implemented with a global “prevention” lock
+
+Downsides:
+- Reduces concurrency
+- Conflicts with encapsulation
+- Requires knowing all locks in advance
+
+---
+
+#### C. Handle no-preemption via trylock
+- Use `trylock()` instead of blocking
+- If acquisition fails:
+  - Release held locks
+  - Retry later
+
+New problem introduced:
+- **Livelock**: threads retry repeatedly but make no progress
+
+Mitigation:
+- Randomized backoff or delays
+
+---
+
+#### D. Avoid mutual exclusion entirely
+- Use **lock-free / wait-free** data structures
+- Built with atomic instructions like compare-and-swap (CAS)
+
+Pros:
+- No lock-based deadlock
+
+Cons:
+- Hard to design correctly
+- Livelock and starvation still possible
+
+---
+
+### 2. Deadlock Avoidance
+- System schedules threads so deadlock **cannot occur**
+- Requires knowing which locks each thread might need
+
+Example:
+- Do not run threads concurrently if they could form a cycle
+
+Classic approach:
+- **Banker’s algorithm**
+
+Tradeoff:
+- Conservative scheduling
+- Reduced concurrency
+- Rare in general-purpose systems
+
+---
+
+### 3. Deadlock Detection and Recovery
+- Allow deadlocks to occur
+- Periodically detect cycles
+- Recover by:
+  - Restarting threads/processes
+  - Aborting transactions
+
+Common in:
+- Database systems
+
+Engineering insight:
+- If deadlocks are rare and recovery is cheap, this is practical
+
+---
+
+## Deadlock vs Related Problems (Exam Traps)
+
+- **Deadlock**: cycle of waiting; no progress possible
+- **Starvation**: some threads never get resources, others do
+- **Livelock**: threads run but keep retrying without progress
+
+---
+
+### Key Takeaways for Exams
+- Be able to **define deadlock**
+- List and explain the **four conditions**
+- Identify **cycles** in dependency graphs
+- Know **prevention techniques** (especially lock ordering)
+- Understand tradeoffs between prevention, avoidance, and detection
+- Do not confuse deadlock with starvation or livelock
+
+---
+---
+
+# Chapter 32 — Common Concurrency Problems (Exam-Oriented Summary)
+
+This chapter focuses on **recognizing common patterns of concurrency bugs** found in real systems.  
+The key message is that concurrency bugs are **not random** — most fall into a **small number of recurring categories**.  
+Being able to identify these patterns is crucial both for **writing correct concurrent code** and for **exam questions**.
+
+---
+
+## Big Picture
+
+Concurrency bugs are divided into **two main classes**:
+
+1. **Non-deadlock bugs** (the majority)
+2. **Deadlock bugs**
+
+An empirical study (Lu et al.) on real systems (MySQL, Apache, Mozilla, OpenOffice) shows that:
+- Most concurrency bugs are **not deadlocks**
+- Most bugs fall into just **two non-deadlock categories**
+
+---
+
+## 1. Non-Deadlock Bugs (Most Common)
+
+Non-deadlock bugs do **not** cause threads to wait forever.  
+Instead, they cause:
+- Crashes
+- Incorrect behavior
+- Violated assumptions about execution
+
+### Two Dominant Types
+
+### A. Atomicity-Violation Bugs
+
+**Definition**  
+An atomicity violation occurs when:
+- A sequence of operations is *assumed* to execute atomically
+- But atomicity is **not enforced**
+
+In Lu et al.’s words:
+> A code region is intended to be atomic, but atomicity is not enforced during execution.
+
+**Typical Pattern**
+- Thread 1: checks a condition, then uses a shared value
+- Thread 2: modifies that value in between
+
+Each instruction is correct, but the **sequence is not protected**.
+
+**Why It Happens**
+- Missing locks
+- Incorrect lock scope
+- Implicit assumptions about execution
+
+**Fix**
+- Protect the entire logical operation with a **lock**
+- Make atomicity assumptions explicit
+
+**Exam Clue**
+- Look for: *check → use* on shared data without synchronization
+
+---
+
+### B. Order-Violation Bugs
+
+**Definition**  
+An order violation occurs when:
+- Correctness requires operation **A to happen before B**
+- But the program does **not enforce this ordering**
+
+**Typical Pattern**
+- One thread initializes data
+- Another thread uses it
+- Scheduler runs them in the wrong order
+
+**Why It Happens**
+- Thread creation ≠ execution order
+- Assumptions like “this thread will run first” are invalid
+
+**Fix**
+- Explicitly enforce ordering
+- Use **condition variables or semaphores**
+- Always wait on a **state variable**, not timing
+
+**Exam Clue**
+- If code assumes “this is already initialized” → order violation
+
+---
+
+### Key Result from the Study
+
+- **97% of non-deadlock bugs** are:
+  - Atomicity violations
+  - Order violations
+
+Understanding these two explains **most real concurrency bugs**.
+
+---
+
+## 2. Deadlock Bugs
+
+**Definition**  
+A deadlock occurs when a set of threads are **permanently blocked**, each waiting for resources held by others.
+
+**Classic Example**
+- Thread A holds lock L1, waits for L2
+- Thread B holds lock L2, waits for L1
+
+Deadlocks are:
+- Timing-dependent
+- Rare but severe
+- Hard to debug
+
+---
+
+## Conditions for Deadlock
+
+Deadlock can occur **only if all four conditions hold**:
+
+1. **Mutual Exclusion**  
+   Resources cannot be shared.
+
+2. **Hold-and-Wait**  
+   Threads hold resources while waiting for others.
+
+3. **No Preemption**  
+   Resources cannot be forcibly taken away.
+
+4. **Circular Wait**  
+   A cycle of waiting exists.
+
+**Critical Exam Rule**
+- If **any one** condition is prevented, deadlock **cannot occur**
+
+---
+
+## 3. Handling Deadlock
+
+### A. Prevention
+
+Prevent one of the four conditions.
+
+**Most Practical**
+- Prevent circular wait using **lock ordering**
+- Always acquire locks in a consistent global order
+
+**Other Techniques**
+- Acquire all locks at once (break hold-and-wait)
+- Use trylock (break no-preemption)
+
+**Tradeoffs**
+- Reduced concurrency
+- More complex code
+- Encapsulation difficulties
+
+---
+
+### B. Avoidance
+
+- System schedules threads to avoid unsafe states
+- Requires knowledge of future lock needs
+- Example: Banker’s algorithm
+
+**Limitations**
+- Complex
+- Reduces concurrency
+- Rarely used in general-purpose systems
+
+---
+
+### C. Detection and Recovery
+
+- Allow deadlocks to occur
+- Periodically detect cycles
+- Recover by restarting threads/processes
+
+Common in:
+- Database systems
+
+Engineering tradeoff:
+- Acceptable when deadlocks are rare and recovery is cheap
+
+---
+
+## 4. Lock-Free (Wait-Free) Approaches
+
+Instead of preventing deadlock:
+- Avoid locks entirely
+- Use atomic hardware instructions (e.g., compare-and-swap)
+
+**Advantages**
+- No deadlock possible
+
+**Disadvantages**
+- Very hard to design correctly
+- Livelock and starvation still possible
+
+---
+
+## Final Exam Takeaways
+
+- Most concurrency bugs are **not deadlocks**
+- **Atomicity violations** and **order violations** dominate
+- Deadlock requires **all four conditions**
+- **Lock ordering** is the most important prevention technique
+- Never rely on timing assumptions
+- Concurrency bugs are about **invalid assumptions**, not syntax
+
