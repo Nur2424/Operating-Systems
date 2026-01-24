@@ -657,7 +657,629 @@ You must be able to explain:
 ---
 ---
 
+## 15.1 Assumptions
+
+To introduce address translation, the OS makes simplifying assumptions to avoid unnecessary complexity. These assumptions are temporary and will be relaxed later.
+
+### Assumption 1: Contiguous Physical Memory
+- Each process’s entire address space is placed in **one contiguous block** of physical memory
+- No paging or fragmentation handling
+- Enables simple translation mechanisms
+
+### Assumption 2: Address Space Fits in Physical Memory
+- Virtual address space size < physical memory size
+- No swapping or disk involvement
+- Every memory reference can be satisfied from RAM
+
+### Assumption 3: Equal-Sized Address Spaces
+- All processes have the same virtual address space size (e.g., 16 KB)
+- Eliminates variable-size management complexity
+
+### Why These Assumptions Matter
+- Allow the OS to **relocate** a process anywhere in physical memory
+- Process still believes its address space starts at virtual address 0
+- Sets up the core virtualization problem: illusion vs reality
+
+### Common Exam Pitfalls
+- Treating these assumptions as realistic
+- Confusing contiguous virtual memory (always true) with contiguous physical memory (assumed here)
+- Forgetting these constraints are later removed
 
 
+## 15.2 An Example
 
-<img width="462" height="651" alt="Снимок экрана 2026-01-23 в 10 28 30" src="https://github.com/user-attachments/assets/4b3e245f-e469-4b78-98e8-248ad0b3f858" />
+This example motivates the need for address translation using a simple code sequence.
+
+### Process View: Virtual Address Space
+
+- Virtual address space: 0 → 16 KB
+- Layout:
+```
+0 KB
++———------------———+
+| Program Code     |
+|                  |
++———------------———+
+| Heap (grows up)  |
++—————------------—+
+|     Free         |
+|                  |
++———------------———+
+| Stack (grows down)|
++————------------——+
+16 KB
+```
+- Variable `x`:
+  - Stored at virtual address **15 KB**
+  - Initial value = 3000
+
+### Example Code
+
+C-level:
+```c
+x = x + 3;
+```
+```
+Assembly-level:
+
+128: movl 0x0(%ebx), %eax   ; load x
+132: addl $0x03, %eax      ; add 3
+135: movl %eax, 0x0(%ebx)  ; store x
+```
+### Virtual Memory References (Process Perspective)
+
+- Fetch instruction at address 128
+- Load from address 15 KB
+- Fetch instruction at address 132
+- Fetch instruction at address 135
+- Store to address 15 KB
+
+All addresses above are **virtual addresses.**
+
+### Physical Reality
+
+- OS occupies low physical memory
+- Process cannot be loaded at physical address 0
+- Process is relocated to physical address 32 KB
+```
+Physical Memory
+0 KB
++------------------+
+| Operating System |
++------------------+
+|   Free           |
++------------------+
+| Code             |
+| Heap             |
+| Stack            |
++------------------+
+|   Free           |
++------------------+
+64 KB
+```
+### The Core Problem
+- Program assumes addresses start at 0
+- Physical memory placement starts elsewhere
+- OS must:
+- Relocate process
+- Preserve illusion of a zero-based address space
+- Avoid modifying program code
+
+### Key Mechanism: Interposition
+- Hardware sits between CPU and memory
+- Every memory reference is translated:
+- Instruction fetch
+- Load
+- Store
+- Translation is transparent to the process
+
+### Why This Matters
+- Enables safe relocation
+- Enables memory virtualization
+- Foundation for all modern virtual memory systems
+
+### Common Exam Pitfalls
+- Ignoring instruction fetches during translation
+- Assuming compiler knows physical addresses
+- Missing transparency as a key benefit
+
+---
+---
+
+## 15.3 Dynamic (Hardware-based) Relocation
+
+Dynamic relocation is the first hardware-supported mechanism for address translation.  
+It is also called the **base and bounds** approach.
+
+---
+
+### Motivation
+- Programs are written assuming they start at virtual address 0
+- OS may load a process anywhere in physical memory
+- Need:
+  - **Relocation**: move processes freely
+  - **Protection**: prevent illegal memory access
+- Must be **transparent** to the process
+
+---
+
+### Base and Bounds Registers
+
+Each CPU contains two hardware registers (set by the OS on context switch):
+
+#### Base Register
+- Holds the **starting physical address** of the process
+- Example: `base = 32 KB`
+
+#### Bounds (Limit) Register
+- Holds the **size of the virtual address space**
+- Example: `bounds = 16 KB`
+- Used for protection
+
+---
+
+### Address Translation Rule
+
+For every memory reference:
+
+1. **Bounds check**
+   - Ensure: `0 ≤ virtual_address < bounds`
+   - If false → hardware exception (fault)
+
+2. **Translation**  physical_address = virtual_address + base
+
+Applies to:
+- Instruction fetch
+- Load
+- Store
+
+Translation happens **at runtime** → dynamic relocation.
+
+---
+
+### Example: Instruction Execution
+
+Given:
+- Base = 32 KB
+- Bounds = 16 KB
+
+Virtual addresses:
+- Instruction at 128
+- Variable `x` at 15 KB
+
+Steps:
+- Fetch instruction:
+- `128 + 32 KB = 32896`
+- Load `x`:
+- `15 KB + 32 KB = 47 KB`
+- Store `x`:
+- Same translation again
+
+Every access goes through base + bounds.
+
+---
+
+### Example Address Translations
+
+Given:
+- Base = 16 KB
+- Bounds = 4 KB
+
+| Virtual Address | Physical Address | Result |
+|-----------------|------------------|--------|
+| 0               | 16 KB            | OK     |
+| 1 KB            | 17 KB            | OK     |
+| 3000            | 19384            | OK     |
+| 4400            | —                | Fault (out of bounds) |
+
+---
+
+### Why Bounds Are Necessary
+
+- Prevents access to:
+- Other processes’ memory
+- Operating system memory
+- Any address:
+- `< 0` or `≥ bounds` → hardware fault
+- Protection enforced by **hardware**, not software
+
+---
+
+### Static vs Dynamic Relocation
+
+#### Static Relocation (Software-based)
+- Loader rewrites addresses before execution
+- Problems:
+- No protection
+- Hard to relocate later
+- Unsafe
+
+#### Dynamic Relocation (Hardware-based)
+- Addresses translated at runtime
+- Advantages:
+- Strong protection
+- Easy relocation
+- Full transparency
+
+---
+
+### Memory Management Unit (MMU)
+
+- Hardware component that performs address translation
+- Contains base and bounds logic
+- Becomes more complex in advanced memory systems
+
+---
+
+### Bounds Register: Two Interpretations
+
+1. **Size-based (used here)**
+- Check: `virtual_address < bounds`
+- Then add base
+
+2. **End-address-based**
+- Add base first
+- Check against physical end address
+
+Both are equivalent logically.
+
+---
+
+### OS Responsibility: Free List (Aside)
+
+- OS must track unused physical memory
+- Simplest structure: **free list**
+- List of free physical memory ranges
+- Used to decide where to load processes
+
+---
+
+### Common Exam Pitfalls
+
+- Forgetting bounds check happens **before** translation
+- Ignoring instruction fetches in translation
+- Thinking base/bounds are per process (they are per CPU, per running process)
+- Confusing static relocation with dynamic relocation
+- Assuming relocation happens only once (it happens on every access)
+
+---
+---
+
+## 15.4 Hardware Support: A Summary
+
+This section summarizes the hardware features required to support **dynamic (base-and-bounds) relocation** safely and efficiently.
+
+---
+
+### Dual CPU Modes
+
+The CPU must support at least two execution modes:
+
+#### Kernel (Privileged) Mode
+- Used by the operating system
+- Full access to hardware
+- Can execute privileged instructions
+
+#### User Mode
+- Used by applications
+- Restricted access
+- Cannot modify critical hardware state
+
+A **mode bit** (e.g., in the process status word) indicates the current mode.  
+Mode switches occur on system calls, interrupts, or exceptions.
+
+---
+
+### Base and Bounds Registers
+
+- Hardware must provide:
+  - **Base register**: starting physical address of the process
+  - **Bounds (limit) register**: size of the process’s virtual address space
+- Registers are part of the **Memory Management Unit (MMU)**
+- One pair per CPU
+- Set by the OS during a context switch
+
+---
+
+### Hardware Address Translation
+
+For every memory reference:
+- Instruction fetch
+- Load
+- Store
+
+The hardware must:
+1. Check that the virtual address is within bounds
+2. Translate the address: physical_address = virtual_address + base
+
+This process is automatic and occurs on every access.
+
+---
+
+### Privileged Instructions to Update Base and Bounds
+
+- CPU must provide special instructions to:
+- Set base register
+- Set bounds register
+- These instructions are:
+- **Privileged**
+- Executable only in kernel mode
+
+This prevents user programs from disabling memory protection.
+
+---
+
+### Exception Handling Support
+
+The CPU must raise exceptions when:
+- A virtual address is out of bounds
+- A user program attempts a privileged instruction
+
+On exception:
+- CPU switches to kernel mode
+- Execution transfers to an OS-defined exception handler
+- OS typically terminates the offending process
+
+---
+
+### Registering Exception Handlers
+
+- OS must be able to inform the CPU where exception handlers reside
+- Requires additional privileged instructions
+- User programs must not be able to install handlers
+
+---
+
+### Hardware Requirements Summary (Figure 15.3)
+
+| Hardware Requirement | Purpose |
+|---------------------|---------|
+| Privileged mode | Prevent user programs from executing privileged operations |
+| Base/bounds registers | Support address translation and bounds checking |
+| Translation & bounds circuitry | Perform virtual-to-physical mapping and validation |
+| Privileged instructions to update base/bounds | Allow OS to safely manage relocation |
+| Privileged instructions to register handlers | Allow OS to handle exceptions correctly |
+| Ability to raise exceptions | Enforce memory protection and isolation |
+
+---
+
+### Common Exam Pitfalls
+
+- Forgetting that mode separation is required in addition to bounds checking
+- Assuming base/bounds registers are per process instead of per CPU
+- Ignoring instruction fetches during address translation
+- Not mentioning exceptions in protection mechanisms
+
+---
+---
+
+## 15.5 Operating System Issues
+
+With hardware support for dynamic (base-and-bounds) relocation, the operating system still has key responsibilities. Hardware performs fast address translation, but the OS manages memory and processes at specific control points.
+
+---
+
+### OS Responsibilities Summary (Figure 15.4)
+
+| OS Requirement | Notes |
+|---------------|-------|
+| Memory management | Allocate memory for new processes; reclaim memory from terminated processes; manage free memory using a free list |
+| Base/bounds management | Save and restore base and bounds registers on context switches |
+| Exception handling | Handle exceptions; typically terminate misbehaving processes |
+
+---
+
+### 1. Process Creation: Memory Allocation
+
+When a process is created, the OS must:
+- Find a contiguous region of physical memory for the process
+- Use a **free list** to locate available memory
+- Mark the selected region as allocated
+- Record the base address for the process
+
+Under current assumptions:
+- All address spaces are the same size
+- All fit into physical memory
+
+This simplifies allocation to slot-based placement.
+
+---
+
+### 2. Process Termination: Memory Reclamation
+
+When a process terminates (normally or forcibly), the OS must:
+- Reclaim all physical memory used by the process
+- Return the memory region to the free list
+- Clean up associated process metadata
+
+Failure to reclaim memory results in OS-level memory leaks.
+
+---
+
+### 3. Context Switches: Base and Bounds Management
+
+Key constraint:
+- Each CPU has only **one** base/bounds register pair
+
+Therefore, on a context switch:
+
+#### Stopping a Process
+- Save base and bounds values
+- Store them in the process control block (PCB)
+
+#### Starting or Resuming a Process
+- Load the process’s base and bounds values into CPU registers
+
+Incorrect handling leads to memory corruption or crashes.
+
+---
+
+### 4. Relocating a Stopped Process
+
+If a process is not running, the OS may:
+- Copy its entire address space to a new physical location
+- Update the saved base value in the PCB
+
+When the process resumes:
+- New base is restored
+- Process is unaware it was moved
+
+This is possible because relocation is dynamic.
+
+---
+
+### 5. Exception Handling
+
+Exceptions occur when:
+- A process accesses memory outside its bounds
+- A process attempts to execute a privileged instruction
+
+On exception:
+1. CPU switches to kernel mode
+2. Control transfers to an OS exception handler
+3. OS typically terminates the offending process
+4. OS frees memory and cleans up process state
+
+---
+
+### 6. Limited Direct Execution Model
+
+- Processes run directly on the CPU most of the time
+- OS intervenes only:
+  - on process creation
+  - on termination
+  - on context switches
+  - on exceptions
+
+This minimizes overhead while preserving protection.
+
+---
+
+### Common Exam Pitfalls
+
+- Assigning memory allocation to hardware instead of the OS
+- Forgetting to save/restore base and bounds on context switches
+- Assuming memory is reclaimed automatically
+- Mixing hardware and OS responsibilities
+
+---
+---
+
+## Chapter 15 Summary — Address Translation
+
+This chapter extends the idea of **limited direct execution** into the domain of memory by introducing **address translation**, a core mechanism of virtual memory.
+
+---
+
+### Address Translation
+
+- Processes generate **virtual addresses**
+- Hardware translates virtual addresses into **physical addresses**
+- Translation occurs on:
+  - Instruction fetch
+  - Load
+  - Store
+- Translation is:
+  - Fast (performed in hardware)
+  - Transparent (process is unaware)
+
+This creates the illusion that:
+- Each process has its own private memory
+- Each process’s address space starts at 0
+
+---
+
+### Base and Bounds (Dynamic Relocation)
+
+The chapter focuses on a simple virtualization mechanism:
+
+- **Base register**
+  - Holds the starting physical address of the process
+- **Bounds (limit) register**
+  - Holds the size of the process’s virtual address space
+
+For every memory reference:
+1. Hardware checks that the virtual address is within bounds
+2. Hardware computes: physical_address = virtual_address + base
+
+Because translation happens at runtime, this mechanism is called **dynamic relocation**.
+
+---
+
+### Efficiency and Protection
+
+- Base-and-bounds is efficient:
+- One addition
+- One comparison per memory access
+- Provides strong **memory protection**:
+- Processes cannot access OS memory
+- Processes cannot access other processes’ memory
+- Illegal accesses raise hardware exceptions handled by the OS
+
+Protection is essential for system safety and control.
+
+---
+
+### Hardware and OS Cooperation
+
+#### Hardware Responsibilities
+- Perform address translation
+- Enforce bounds checking
+- Raise exceptions on illegal accesses
+- Support privileged and user modes
+
+#### Operating System Responsibilities
+- Allocate physical memory to processes (via a free list)
+- Reclaim memory on process termination
+- Save and restore base and bounds on context switches
+- Handle exceptions, usually by terminating offending processes
+
+---
+
+### Limitation: Internal Fragmentation
+
+- Each process is placed in a fixed-size physical memory slot
+- Heap and stack may use only part of the allocated space
+- Unused memory within the slot is wasted
+
+This waste is called **internal fragmentation**:
+- Free memory exists but cannot be used effectively
+
+---
+
+### Why a More Advanced Mechanism Is Needed
+
+- Base-and-bounds is:
+- Simple
+- Fast
+- Protective
+- But it is:
+- Too coarse-grained
+- Inefficient in memory usage
+
+To reduce internal fragmentation and better utilize memory, more sophisticated techniques are required.
+
+---
+
+### What Comes Next
+
+- The next step is **segmentation**
+- Segmentation generalizes base-and-bounds
+- Provides more flexible memory allocation
+- Reduces internal fragmentation
+
+---
+
+### Key Exam Takeaways
+
+- Difference between virtual and physical addresses
+- Base + bounds translation rule
+- Hardware vs OS responsibilities
+- Importance of protection
+- Meaning of internal fragmentation
+- Motivation for segmentation
+
+---
+---
+
+
