@@ -953,3 +953,1460 @@ When revising, remember this **end-to-end story**:
 ## Final Exam-Ready Takeaway
 
 > Chapter 21 explains how operating systems use disk as an extension of memory, detect missing pages via the present bit, handle page faults in software, evict pages when necessary, and proactively manage memory using background replacement to maintain performance.
+
+
+---
+---
+
+# Chapter 22 — Beyond Physical Memory: Policies  
+## Introduction and 22.1 Cache Management
+
+This chapter focuses on **how the operating system decides which page to evict from memory** when physical memory is under pressure. While previous chapters explained the *mechanisms* of virtual memory, this chapter explains the *policies* that make those mechanisms perform well.
+
+---
+
+## Memory Pressure and the Need for Policies
+
+When plenty of free physical memory is available:
+- A page fault occurs
+- The operating system finds a free physical page
+- The missing page is loaded
+- Execution continues smoothly
+
+When physical memory becomes scarce:
+- The operating system must **page out** one or more pages
+- Choosing the wrong page to evict can severely degrade performance
+
+This decision-making logic is called the **replacement policy** of the operating system.
+
+---
+
+## The Central Problem of This Chapter
+
+> How can the operating system decide which page (or pages) to evict from memory?
+
+This decision:
+- Is made whenever memory pressure exists
+- Has a massive impact on performance
+- Was historically critical when systems had very little physical memory
+
+---
+
+## Viewing Physical Memory as a Cache
+
+A key conceptual shift introduced in this chapter is:
+
+> Physical memory can be viewed as a **cache** for virtual memory pages stored on disk.
+
+Under this model:
+- Disk acts as the backing store
+- Physical memory acts as a cache
+- Pages are the cached items
+
+Consequences:
+- Accessing a page already in memory is a **cache hit**
+- Accessing a page that must be fetched from disk is a **cache miss**
+
+This analogy is fundamental to understanding page replacement.
+
+---
+
+## Goal of a Replacement Policy
+
+A replacement policy aims to:
+
+- **Minimize the number of cache misses**  
+  (i.e., page faults that require disk access)
+
+Or equivalently:
+- **Maximize the number of cache hits**  
+  (i.e., accesses satisfied from physical memory)
+
+This goal exists because disk access is extremely slow compared to memory access.
+
+---
+
+## Average Memory Access Time (AMAT)
+
+To reason about performance, we use **Average Memory Access Time (AMAT)**.
+
+Conceptually, AMAT combines:
+- The probability of a memory access being a hit
+- The probability of a memory access being a miss
+- The cost of accessing memory
+- The cost of accessing disk
+
+The intuition behind AMAT is more important than the formula itself.
+
+---
+
+## Why Miss Rate Dominates Performance
+
+Typical access costs:
+- Memory access: on the order of **nanoseconds**
+- Disk access: on the order of **milliseconds**
+
+This means disk access is roughly **100,000 times slower** than memory access.
+
+As a result:
+- Even a very small miss rate can dominate total execution time
+- Programs with frequent page faults effectively run at disk speed
+
+Key insight:
+> Avoiding page faults is far more important than optimizing memory hits.
+
+---
+
+## Implications for System Design
+
+Because disk access is so expensive:
+- Replacement policies must be carefully designed
+- Keeping frequently-used pages in memory is critical
+- Poor policies can make a fast system behave like a very slow one
+
+This explains why:
+- Page replacement is a central operating system problem
+- Many different replacement policies exist
+
+---
+
+## How This Section Connects to What Follows
+
+This conceptual framework prepares you to understand:
+- First-In First-Out replacement
+- Least Recently Used replacement
+- Approximations of usage history
+- Thrashing and system collapse under heavy memory pressure
+
+All of these topics attempt to solve the same problem:
+- Keeping the right pages in memory at the right time
+
+---
+
+## Exam-Relevant Points
+
+You should be able to explain:
+- Why physical memory is treated as a cache
+- What cache hits and cache misses mean in virtual memory
+- Why disk access dominates performance
+- Why replacement policy choice is crucial
+
+You are not expected to:
+- Memorize numerical constants
+- Derive formulas under time pressure
+- Understand hardware cache internals
+
+---
+
+## One-Sentence Takeaway (Exam-Ready)
+
+Replacement policies aim to minimize page faults by treating physical memory as a cache for disk-resident pages, because even a small miss rate causes severe performance degradation due to extremely slow disk access.
+
+---
+---
+
+## 22.2 The Optimal Replacement Policy
+
+This section introduces the **optimal page-replacement policy**, a theoretical policy that achieves the **minimum possible number of cache misses** for a given sequence of memory accesses. Although it cannot be implemented in practice, it is essential as a **baseline for comparison**.
+
+---
+
+### Purpose of the Optimal Policy
+
+The optimal policy exists to answer the question:
+
+> What is the best possible replacement behavior if the future were known?
+
+It is **not** intended to be used in real operating systems. Instead, it provides:
+- A lower bound on the number of misses
+- A reference point to evaluate real policies
+
+---
+
+### Definition
+
+The **optimal replacement policy** evicts:
+
+> **The page whose next access is farthest in the future.**
+
+If a page is **never accessed again**, it is always the best choice to evict.
+
+This policy results in the **fewest possible cache misses** for any given reference string.
+
+---
+
+### Intuition Behind Optimality
+
+When a replacement is required:
+- Pages that will be used soon should be kept
+- Pages that will be used farthest in the future are least useful now
+
+By evicting the page with the most distant next use:
+- All other pages will be accessed earlier
+- Future misses are minimized
+
+No other policy can outperform this behavior on the same access sequence.
+
+---
+
+### Why the Optimal Policy Cannot Be Implemented
+
+The critical limitation is that:
+- The policy requires **perfect knowledge of future memory accesses**
+
+In real systems:
+- The future reference string is unknown
+- Programs may behave unpredictably
+
+Therefore:
+- The optimal policy is **not deployable**
+- It is used only for **analysis and comparison**
+
+---
+
+### Why the Optimal Policy Is Still Useful
+
+Despite being impractical, the optimal policy is valuable because:
+- It provides a **gold standard**
+- It allows meaningful evaluation of real policies
+- It shows how close a policy is to the theoretical best
+
+Without such a reference, hit rates and miss counts lack context.
+
+---
+
+### Tracing the Optimal Policy (Exam-Relevant Skill)
+
+To simulate the optimal policy on a reference string:
+
+1. Start with an empty cache
+2. On each page access:
+   - If the page is in cache → hit
+   - If not → miss
+3. If a miss occurs and the cache is full:
+   - Look ahead in the reference string
+   - Determine the next access of each cached page
+   - Evict the page whose next use is farthest in the future
+   - If a page is never used again, evict it
+
+You must be able to perform this reasoning manually.
+
+---
+
+### Compulsory (Cold-Start) Misses
+
+The example introduces **compulsory misses**:
+- The first access to a page always causes a miss
+- These misses are unavoidable
+
+Such misses are sometimes excluded when comparing policies to focus on replacement behavior.
+
+---
+
+### Types of Cache Misses (Context)
+
+In general, cache misses can be classified as:
+
+1. **Compulsory (cold-start) miss**  
+   First reference to a page
+
+2. **Capacity miss**  
+   Cache cannot hold all needed pages
+
+3. **Conflict miss**  
+   Due to placement restrictions
+
+Important note for paging:
+- OS page caches are **fully associative**
+- Conflict misses do **not** occur in paging systems
+
+---
+
+### Exam-Relevant Points
+
+You should be able to explain:
+- What the optimal replacement policy is
+- Why it minimizes misses
+- Why it cannot be implemented
+- Why it is used as a comparison baseline
+- What compulsory misses are
+- How to trace optimal replacement on a page-reference sequence
+
+---
+
+### One-Sentence Takeaway (Exam-Ready)
+
+The optimal replacement policy evicts the page whose next access is farthest in the future, achieving the minimum possible number of misses and serving as a theoretical benchmark despite being impossible to implement in real systems.
+
+---
+---
+
+## 22.3 A Simple Policy: FIFO
+
+This section introduces **FIFO (First-In, First-Out)** page replacement, one of the simplest replacement policies historically used in operating systems.
+
+---
+
+### Basic Idea of FIFO
+
+FIFO replaces pages based solely on **arrival time** in memory.
+
+How it works:
+- When a page is loaded into memory, it is placed at the **end of a queue**
+- Pages remain in the queue in the order they entered memory
+- When a replacement is needed:
+  - The page that has been in memory the **longest time** (the first one inserted) is evicted
+
+FIFO does **not** consider:
+- How often a page is accessed
+- How recently a page is accessed
+- Whether a page is important or heavily used
+
+---
+
+### Strength of FIFO
+
+FIFO’s main advantage:
+
+- **Simplicity**
+
+It is:
+- Easy to understand
+- Easy to implement
+- Requires minimal bookkeeping
+
+This is why many early systems used FIFO.
+
+---
+
+### FIFO Behavior on a Reference String
+
+When tracing FIFO:
+- The first accesses to distinct pages cause **compulsory misses**
+- Pages are added to the queue in arrival order
+- Once the cache is full, every miss causes eviction of the **oldest page**
+
+Replacement rule:
+- Always evict the page that entered memory first
+
+Even if that page:
+- Was accessed recently
+- Is frequently used
+
+---
+
+### Performance Characteristics
+
+FIFO often performs **poorly** compared to optimal replacement because:
+
+- It cannot distinguish important pages from unimportant ones
+- It may evict heavily-used pages simply because they are old
+- It ignores locality of reference
+
+As a result:
+- Hit rates are often significantly lower than optimal
+- Performance can degrade badly under some workloads
+
+---
+
+### Comparison with Optimal Replacement
+
+Compared to the optimal policy:
+- FIFO produces more misses
+- FIFO cannot predict future accesses
+- FIFO may evict a page that will be used again very soon
+
+FIFO lacks any notion of:
+- Future use
+- Past use
+- Page importance
+
+---
+
+### Belady’s Anomaly (Very Important)
+
+FIFO can exhibit **Belady’s Anomaly**:
+
+> Increasing the number of page frames can **increase** the number of page faults.
+
+This behavior is:
+- Counterintuitive
+- Undesirable
+- A known weakness of FIFO
+
+Belady’s Anomaly demonstrates that:
+- FIFO does not behave monotonically with cache size
+- More memory does not always mean better performance under FIFO
+
+---
+
+### Stack Property (Context)
+
+Some policies (such as LRU) have a **stack property**:
+- The set of pages in a cache of size N is always a subset of those in size N+1
+
+FIFO does **not** have this property, which explains why:
+- Belady’s Anomaly can occur
+- Performance may worsen when cache size increases
+
+---
+
+### Exam-Relevant Points
+
+You should be able to explain:
+- How FIFO replacement works
+- Why FIFO is simple but naive
+- Why FIFO may evict frequently-used pages
+- What Belady’s Anomaly is
+- Why FIFO can perform worse with more memory
+
+You should be able to **trace FIFO manually** on a page-reference sequence.
+
+---
+
+### One-Sentence Takeaway (Exam-Ready)
+
+FIFO replaces the page that has been in memory the longest, making it simple to implement but often inefficient, and it can even suffer from Belady’s Anomaly where more memory leads to more page faults.
+
+---
+---
+
+## 22.4 Another Simple Policy: Random
+
+This section introduces **Random page replacement**, a simple policy that evicts a randomly chosen page whenever memory pressure requires a replacement.
+
+---
+
+### Basic Idea of Random Replacement
+
+Random replacement works as follows:
+- When a page must be evicted from memory
+- The operating system selects **one of the resident pages at random**
+- The selected page is evicted, regardless of its history or importance
+
+The policy does **not** consider:
+- How long a page has been in memory
+- How recently or frequently a page has been accessed
+- Whether a page will be needed again soon
+
+---
+
+### Why Random Is Considered
+
+Random replacement is interesting because:
+- It is **extremely simple to implement**
+- It requires **no bookkeeping or metadata**
+- It avoids systematic bias toward certain pages
+
+It serves as a **baseline policy** for comparison with more intelligent strategies.
+
+---
+
+### Performance Characteristics
+
+Random replacement:
+- Often performs **slightly better than FIFO**
+- Performs **worse than the optimal policy**
+- Has **high variability** in performance
+
+Its behavior depends entirely on:
+- Which pages are randomly selected for eviction
+
+As a result:
+- Sometimes it behaves close to optimal
+- Sometimes it behaves very poorly
+- There is no guaranteed outcome
+
+---
+
+### Experimental Insight from the Text
+
+When the same page-reference sequence is run many times:
+- Each run uses a different random seed
+- Each run produces a different number of hits
+
+This shows that:
+- Random does not have a single predictable hit rate
+- Its performance is best described as a **distribution of outcomes**
+
+---
+
+### Comparison with FIFO
+
+Compared to FIFO:
+- Random does not always evict the oldest page
+- It sometimes keeps frequently-used pages by chance
+- It often avoids the worst pathological behaviors of FIFO
+
+Because of this:
+- Random can outperform FIFO on many workloads
+- FIFO’s weaknesses are systematic, while Random’s are accidental
+
+---
+
+### Limitations of Random Replacement
+
+Despite its simplicity:
+- Random does not exploit locality of reference
+- It provides no performance guarantees
+- Its unpredictable behavior makes it unsuitable for real systems
+
+Modern operating systems prefer policies that:
+- Use access history
+- Provide stable and predictable performance
+
+---
+
+### Exam-Relevant Points
+
+You should be able to explain:
+- How Random replacement works
+- Why it is simple to implement
+- Why its performance varies widely
+- Why it can outperform FIFO in some cases
+- Why it is still inferior to history-based policies
+
+---
+
+### One-Sentence Takeaway (Exam-Ready)
+
+Random replacement evicts a randomly chosen page, making it simple and sometimes better than FIFO, but its performance is unpredictable because it relies entirely on chance.
+
+---
+---
+
+## 22.5 Using History: LRU — Explanation (Exam-Oriented)
+
+### Why FIFO and Random are problematic
+FIFO and Random replacement policies do not consider **how programs actually use memory**.
+
+- **FIFO** evicts the page that entered memory first, even if it is heavily used.
+- **Random** evicts an arbitrary page, sometimes working by luck, often not.
+
+In exam terms:
+> FIFO and Random are **blind policies** — they ignore page importance.
+
+---
+
+### Core idea behind LRU
+The **Least-Recently-Used (LRU)** policy is based on a simple but powerful observation:
+
+> **If a page was used recently, it is likely to be used again soon.**
+
+This is not an assumption pulled from nowhere — it comes from observing **real program behavior**.
+
+---
+
+### Principle of Locality (EXAM-CRITICAL)
+LRU relies on the **principle of locality**, which has two forms:
+
+#### 1. Temporal Locality
+- Pages accessed **recently** are likely to be accessed **again soon**.
+- This is the **main assumption behind LRU**.
+
+#### 2. Spatial Locality
+- If page `P` is accessed, nearby pages (`P+1`, `P-1`) are likely to be accessed.
+- Explains why paging and caches work well together.
+
+⚠️ Important exam note:  
+Locality is a **heuristic**, not a guarantee. Some programs do not exhibit locality.
+
+---
+
+### How LRU works (mechanism)
+When a page fault occurs and memory is full:
+
+1. Examine all pages currently in memory
+2. Determine which page was accessed **least recently**
+3. Evict that page
+
+LRU uses **history (recency)**, not arrival time or randomness.
+
+---
+
+### Why LRU performs well
+- **Optimal** replaces the page used **furthest in the future**
+- **LRU** replaces the page used **furthest in the past**
+
+Because real programs tend to repeat access patterns:
+> **The recent past is often a good predictor of the near future**
+
+This is why LRU often **approaches optimal performance**, unlike FIFO or Random.
+
+---
+
+### Comparison of replacement policies
+
+| Policy  | Uses History | Exploits Locality | Can approach Optimal |
+|--------|--------------|-------------------|----------------------|
+| FIFO   | No           | No                | No                   |
+| Random | No           | No                | No                   |
+| LRU    | Yes (recency)| Yes (temporal)    | Yes (often)          |
+
+---
+
+### Related policies (do not confuse in exams)
+- **LRU**: Least recently used (good)
+- **LFU**: Least frequently used (sometimes misleading)
+- **MRU**: Most recently used (usually poor)
+- **MFU**: Most frequently used (usually poor)
+
+Policies that **ignore locality** generally perform poorly.
+
+---
+
+### Typical exam questions on LRU
+1. **Trace problems**
+   - Given a reference string and number of frames
+   - Count hits and misses using LRU
+
+2. **Conceptual**
+   - Why does LRU outperform FIFO?
+   - Which locality does LRU exploit? → **Temporal locality**
+
+3. **Comparison**
+   - Which policy avoids Belady’s anomaly? → **LRU**
+   - Which policy has the stack property? → **LRU**
+
+---
+
+### One-sentence takeaway (exam-ready)
+**LRU replaces the page that has not been used for the longest time, exploiting temporal locality to approximate the optimal replacement policy.**
+
+---
+---
+
+## 22.6 Workload Examples
+
+This section studies **how page-replacement policies behave under different memory access patterns**.  
+The key lesson is that **there is no universally best policy**: performance depends heavily on the **workload**.
+
+---
+
+## What is a Workload?
+A **workload** is the sequence of virtual page references generated by a program.
+
+Different workloads:
+- exhibit different locality properties
+- stress replacement policies in different ways
+
+---
+
+## Workload 1: No-Locality Workload
+
+### Description
+- Each memory reference is to a **random page**
+- No temporal locality
+- No spatial locality
+- 100 unique pages
+- 10,000 total references
+- Cache size varies from 1 to 100 pages
+
+### Observed Behavior
+- FIFO, Random, and LRU perform **almost identically**
+- Hit rate is determined **only by cache size**
+- When cache size ≥ number of unique pages → **100% hit rate**
+- Otherwise, misses are unavoidable
+
+### Key Insight
+- Without locality, **history-based policies provide no benefit**
+
+### Exam Takeaway
+**If a workload has no locality, sophisticated replacement policies do not outperform simple ones.**
+
+---
+
+## Workload 2: The 80–20 Workload (Hot–Cold Pages)
+
+### Description
+- 80% of memory references go to 20% of pages (**hot pages**)
+- Remaining 20% of references go to the other 80% of pages (**cold pages**)
+- 100 unique pages total
+- Strong **temporal locality**
+
+### Observed Behavior
+- LRU significantly outperforms FIFO and Random
+- LRU keeps hot pages resident in memory
+- FIFO and Random may evict hot pages
+- Optimal performs best due to future knowledge
+
+### Key Insight
+- Locality allows LRU to use history effectively
+
+### Exam Takeaway
+**LRU performs well when workloads exhibit strong temporal locality.**
+
+---
+
+## Workload 3: Looping-Sequential Workload
+
+### Description
+- Pages accessed in strict sequence: 0, 1, 2, ..., 49
+- Sequence repeats continuously
+- Cache size slightly **smaller than the loop length**
+
+### Observed Behavior
+- FIFO and LRU can experience **0% hit rate**
+- Pages are evicted just before being reused
+- Random performs better by occasionally retaining useful pages
+- Optimal still performs best
+
+### Key Insight
+- This workload is a **pathological case** for LRU and FIFO
+
+### Exam Takeaway
+**LRU is not universally optimal and can fail badly on looping sequential access patterns.**
+
+---
+
+## Comparative Summary
+
+| Workload Type           | FIFO | Random | LRU | Optimal |
+|------------------------|------|--------|-----|---------|
+| No locality            | Same | Same   | Same| Best    |
+| 80–20 (high locality)  | Poor | Poor   | Good| Best    |
+| Looping sequential     | Poor | Better | Poor| Best    |
+
+---
+
+## Core Conceptual Lessons (Exam-Critical)
+
+- Replacement policy performance depends on **workload**
+- **Locality** determines whether history-based policies help
+- LRU:
+  - Excellent with locality
+  - Vulnerable to adversarial patterns
+- Random:
+  - Generally inferior
+  - Sometimes avoids worst-case behavior
+- Optimal:
+  - Theoretical benchmark only
+
+---
+
+## One-Sentence Takeaway (Exam-Ready)
+**Page-replacement policies must be evaluated in the context of workload locality, as policies like LRU excel with locality but can perform poorly on certain access patterns.**
+
+---
+---
+
+## 22.7 Implementing Historical Algorithms
+
+This section explains **why history-based policies (especially LRU) are hard to implement efficiently**, even though they perform well conceptually.
+
+---
+
+## Why Historical Policies Are Better (in Theory)
+
+- Policies like **LRU** outperform FIFO and Random because they:
+  - avoid evicting recently used (important) pages
+  - exploit **temporal locality**
+- However, better decisions come at a **higher implementation cost**
+
+---
+
+## The Core Implementation Problem
+
+### What perfect LRU requires
+To implement **true LRU**, the system must:
+
+- Update recency information **on every memory reference**
+  - instruction fetch
+  - load
+  - store
+- Move the accessed page to the **most-recently-used (MRU)** position
+- Know at replacement time which page is the **least-recently-used**
+
+This means **accounting work on every memory access**, which is extremely frequent.
+
+---
+
+## Comparison with FIFO (Why FIFO Is Cheaper)
+
+| Policy | When data structures are updated |
+|------|----------------------------------|
+| FIFO | Only on page insert or eviction |
+| LRU  | On **every memory reference** |
+
+👉 This is why FIFO is cheap and LRU is expensive.
+
+---
+
+## Hardware-Assisted LRU (Theoretical Approach)
+
+One possible solution is **hardware support**:
+
+- On every page access:
+  - hardware writes a timestamp (or counter) for that page
+- At replacement time:
+  - OS scans all pages
+  - evicts the page with the **oldest timestamp**
+
+### Why this still fails
+- Modern systems have **millions of pages**
+- Scanning all pages to find the oldest one is **prohibitively slow**
+- Example:
+  - 4 GB memory
+  - 4 KB pages
+  - ≈ 1 million pages to scan
+
+---
+
+## The Key Question (Exam-Critical)
+
+> Do we really need the **exact** least-recently-used page?
+
+This motivates the next idea:
+
+- **Approximate LRU**
+- Trade perfect accuracy for **much better performance**
+
+---
+
+## Big Insight
+
+- Perfect LRU is:
+  - conceptually simple
+  - practically expensive
+- Real systems must use:
+  - **approximations**
+  - limited hardware support
+  - heuristics that capture locality without full tracking
+
+---
+
+## One-Sentence Takeaway (Exam-Ready)
+
+**Although LRU performs well by exploiting history, implementing perfect LRU is too expensive in practice, motivating the use of efficient approximations.**
+
+---
+---
+
+## 22.8 Approximating LRU
+
+Perfect LRU is too expensive to implement in real systems.  
+This section explains **how operating systems approximate LRU efficiently**, using limited hardware support, while preserving most of LRU’s benefits.
+
+---
+
+## Why Approximate LRU?
+
+### Problem with Perfect LRU
+- Perfect LRU requires updating data structures **on every memory reference**
+- Replacement requires finding the **exact least-recently-used page**
+- With millions of pages, this becomes **computationally prohibitive**
+
+### Core Question
+**Do we really need the exact LRU page, or is a good approximation enough?**
+
+Answer: an approximation is sufficient — and widely used.
+
+---
+
+## Hardware Support: The Use (Reference) Bit
+
+### Use Bit Basics
+- Each page has a **use bit** (also called **reference bit**)
+- Stored in:
+  - page table entries, or
+  - a separate OS-managed array
+- Behavior:
+  - When a page is **read or written**, hardware sets the use bit to `1`
+  - Hardware **never clears** the bit
+  - Clearing is done by the **OS**
+
+This provides **cheap, coarse-grained history information**.
+
+---
+
+## The Clock Algorithm (Second-Chance Replacement)
+
+### High-Level Idea
+- Pages are arranged in a **circular list**
+- A pointer (the “clock hand”) moves through pages
+- Replacement proceeds by examining use bits
+
+### Replacement Procedure
+1. Inspect the page pointed to by the clock hand
+2. If its use bit is `1`:
+   - Clear the use bit (`1 → 0`)
+   - Move the clock hand to the next page
+3. If its use bit is `0`:
+   - Select this page for eviction
+4. Repeat until a victim page is found
+
+### Interpretation
+- Pages recently used get a **second chance**
+- Pages not used recently are eventually evicted
+
+---
+
+## Why Clock Works Well
+
+- Avoids scanning all pages at once
+- Approximates LRU using **recent usage**
+- Scales well to large memories
+- Captures most of the benefit of LRU at much lower cost
+
+---
+
+## Performance Characteristics
+
+From workload experiments:
+- Clock performs:
+  - Worse than perfect LRU
+  - Much better than FIFO and Random
+- Especially effective for workloads with **temporal locality**
+- Suffers less overhead than full LRU
+
+---
+
+## Important Clarifications
+
+- Clock is **not the only** LRU approximation
+- Any algorithm that:
+  - periodically clears use bits, and
+  - prefers pages with use bit `0`
+  is an LRU approximation
+- Clock’s advantage is **simplicity and efficiency**
+
+---
+
+## Comparison Summary
+
+| Policy | History Used | Implementation Cost | Practical Use |
+|------|-------------|---------------------|---------------|
+| FIFO | No | Very low | Rare today |
+| Random | No | Very low | Sometimes |
+| LRU (perfect) | Yes (exact) | Too high | Impractical |
+| Clock | Yes (approx.) | Low | Widely used |
+
+---
+
+## One-Sentence Takeaway (Exam-Ready)
+
+**Approximating LRU using a hardware-maintained use bit and the clock algorithm provides most of LRU’s benefit at a fraction of the implementation cost.**
+
+---
+---
+
+## 22.9 Considering Dirty Pages
+
+This section refines page-replacement decisions by considering **whether a page has been modified while in memory**.
+
+---
+
+## Dirty vs. Clean Pages
+
+- **Dirty page**: a page that has been **modified (written to)** while in memory  
+- **Clean page**: a page that has **not been modified**
+
+### Why this matters
+- Evicting a **dirty page** requires:
+  - writing it back to disk (expensive I/O)
+- Evicting a **clean page**:
+  - no disk write needed
+  - physical frame can be reused immediately
+
+👉 Therefore, **evicting clean pages is cheaper than evicting dirty pages**.
+
+---
+
+## Hardware Support: The Modified (Dirty) Bit
+
+- Hardware maintains a **modified bit** (also called **dirty bit**) per page
+- Behavior:
+  - Set to `1` when a page is written to
+  - Remains `0` if the page is only read
+- Stored in:
+  - page table entries (commonly)
+
+This bit allows the OS to distinguish **clean vs. dirty pages** during replacement.
+
+---
+
+## Integrating Dirty Pages into Replacement
+
+### Motivation
+Replacement policies should consider **both**:
+- how recently a page was used
+- whether evicting it would require disk I/O
+
+---
+
+## Clock Algorithm with Dirty Pages (Conceptual)
+
+The clock algorithm can be extended to consider two bits:
+- **Use bit** (recently used?)
+- **Dirty bit** (modified?)
+
+### Example eviction preference order
+1. Pages that are **unused and clean**
+2. Pages that are **unused but dirty**
+3. Pages that are **used and clean**
+4. Pages that are **used and dirty**
+
+This ordering:
+- minimizes disk writes
+- preserves recently used pages when possible
+
+---
+
+## Key Insight
+
+- Dirty pages are more expensive to evict
+- Replacement policies that prefer clean pages can **significantly reduce I/O cost**
+- This optimization does not change correctness, only **performance**
+
+---
+
+## Exam-Relevant Points
+
+- Dirty bit is **set on writes**, not reads
+- Evicting a dirty page implies a **write-back to disk**
+- Clean pages can be evicted **without disk I/O**
+- Modern VM systems almost always consider dirty pages
+
+---
+
+## One-Sentence Takeaway (Exam-Ready)
+
+**By preferring clean pages over dirty ones during replacement, the OS reduces costly disk writes while maintaining correct virtual memory behavior.**
+
+---
+---
+
+## 22.10 Other VM Policies
+
+Page replacement is the most visible policy in a virtual memory system, but it is **not the only one**.  
+The VM subsystem also includes policies that decide **when pages are brought into memory** and **how pages are written back to disk**.
+
+---
+
+## Page Selection Policy (When to Bring Pages In)
+
+Beyond deciding **which page to evict**, the OS must decide **when to load a page into memory**.  
+This decision is known as the **page selection policy**.
+
+### Demand Paging (Default Behavior)
+- The OS loads a page **only when it is accessed**
+- Pages are brought into memory **on demand**
+- Advantages:
+  - Avoids loading unused pages
+  - Reduces unnecessary I/O
+- This is the **standard approach** used by most systems
+
+---
+
+## Prefetching (Speculative Loading)
+
+Instead of waiting for a page to be accessed, the OS may **guess** that a page will be needed soon and load it early.
+
+### Example
+- If code page `P` is accessed
+- The OS assumes page `P + 1` will soon be accessed
+- Page `P + 1` is prefetched into memory
+
+### Key Points
+- Prefetching can improve performance
+- But it is risky:
+  - Wrong guesses waste memory and I/O
+- Should only be used when there is a **reasonable chance of success**
+- Relies heavily on **spatial locality**
+
+---
+
+## Write Policy (How Pages Are Written to Disk)
+
+Another VM policy concerns **how modified pages are written back to disk**.
+
+### Simple Approach
+- Write pages to disk **one at a time**
+
+### Optimized Approach: Clustering (Grouping Writes)
+- Collect multiple dirty pages in memory
+- Write them to disk **together in one large I/O operation**
+
+### Why Clustering Works
+- Disk drives are much more efficient at:
+  - one large write
+  - than many small writes
+- Reduces seek and rotational overhead
+
+---
+
+## Key Insights
+
+- VM performance depends on **multiple interacting policies**
+- Replacement decides *what leaves*
+- Selection decides *what enters*
+- Write policy decides *how data goes back to disk*
+- These policies exploit **locality** and **disk behavior**
+
+---
+
+## Exam-Relevant Takeaways
+
+- Demand paging = load pages **only when accessed**
+- Prefetching = speculative loading based on locality
+- Clustering = grouping disk writes for efficiency
+- Page replacement is important, but **not sufficient alone**
+
+---
+
+## One-Sentence Takeaway (Exam-Ready)
+
+**Virtual memory performance depends not only on page replacement, but also on policies for page selection (demand paging vs. prefetching) and efficient write-back to disk (clustering).**
+
+
+---
+---
+
+## 22.11 Thrashing
+
+This section discusses what happens when **memory demand exceeds physical memory capacity**, and how operating systems attempt to cope with this situation.
+
+---
+
+## What Is Thrashing?
+
+**Thrashing** occurs when:
+- Physical memory is **oversubscribed**
+- The combined memory needs of running processes **exceed available RAM**
+- The system spends most of its time **paging** (swapping pages in and out)
+- Very little useful work is done
+
+In thrashing:
+- CPU utilization drops
+- Disk activity increases dramatically
+- Performance collapses
+
+---
+
+## Why Thrashing Happens
+
+- Too many processes are running at once
+- Each process has a **working set** (the set of pages it actively uses)
+- If the sum of working sets does **not fit in memory**, constant page faults occur
+
+---
+
+## The Working Set Concept
+
+- A **working set** is the collection of pages a process is actively using
+- If a process’s working set fits in memory:
+  - It can make progress
+- If not:
+  - It will continuously fault
+
+Thrashing is fundamentally a **working-set mismatch problem**.
+
+---
+
+## Admission Control (Classic Solution)
+
+### Idea
+Instead of running all processes at once:
+- Run **fewer processes**
+- Ensure their combined working sets fit in memory
+
+### How It Works
+- The OS temporarily **suspends or delays** some processes
+- The remaining processes run efficiently
+- Overall system throughput improves
+
+### Philosophy
+> It is better to do **less work well** than **more work poorly**
+
+This approach is known as **admission control**.
+
+---
+
+## Modern OS Approach: Out-of-Memory Killer
+
+Some modern systems (e.g., Linux) take a more aggressive approach.
+
+### Out-of-Memory (OOM) Killer
+- Activated when memory is critically low
+- Selects a **memory-intensive process**
+- Terminates it to free memory immediately
+
+### Advantages
+- Quickly relieves memory pressure
+- Simple and effective
+
+### Disadvantages
+- May kill important processes
+- Can lead to poor user experience
+  - e.g., killing the display server
+
+---
+
+## Key Insights
+
+- Thrashing is a system-wide performance failure
+- It cannot be fixed by page replacement alone
+- Requires **global memory management decisions**
+- Balancing multiprogramming level is essential
+
+---
+
+## Exam-Relevant Points
+
+- Thrashing = excessive paging + little useful work
+- Caused by working sets not fitting in memory
+- Admission control reduces the number of active processes
+- OOM killer is a last-resort mechanism
+
+---
+
+## One-Sentence Takeaway (Exam-Ready)
+
+**Thrashing occurs when the combined working sets of running processes exceed physical memory, causing constant paging and severe performance degradation.**
+
+---
+---
+
+# Chapter 22 — Beyond Physical Memory: Policies
+
+This chapter focuses on **how the operating system makes decisions under memory pressure**.  
+While previous chapters explained *how* paging works (mechanisms), this chapter explains *which pages should be kept* and *which should be evicted* when memory is full.
+
+---
+
+## 1. Main Memory as a Cache
+
+A fundamental idea of this chapter is that:
+
+- **Main memory acts as a cache for disk**
+- Disk is:
+  - very large
+  - extremely slow
+- Memory is:
+  - small
+  - fast
+
+Thus, virtual memory management is essentially a **cache management problem**.
+
+The OS aims to:
+- **maximize cache hits**
+- **minimize cache misses**
+
+---
+
+## 2. Why Replacement Policies Are Critical
+
+Disk access is **orders of magnitude slower** than memory access.
+
+Even a very small miss rate:
+- dominates overall execution time
+- severely degrades performance
+
+This is captured by **Average Memory Access Time (AMAT)**:
+- a tiny increase in miss rate causes a huge increase in AMAT
+
+**Key insight:**  
+Replacement policy quality has a **direct and dramatic impact** on system performance.
+
+---
+
+## 3. Replacement Policies Overview
+
+### Optimal Replacement (Theoretical Baseline)
+
+- Replaces the page that will be accessed **furthest in the future**
+- Produces the **fewest possible cache misses**
+- Impossible to implement in practice (requires future knowledge)
+
+Used only as:
+- a comparison baseline
+- a way to measure how close real policies are to ideal behavior
+
+---
+
+### FIFO (First-In, First-Out)
+
+- Evicts the page that entered memory first
+- Very simple to implement
+- Ignores:
+  - how often a page is used
+  - how recently a page is used
+
+Problems:
+- Can evict heavily used pages
+- Suffers from **Belady’s anomaly**
+- Does not exploit locality
+
+---
+
+### Random Replacement
+
+- Evicts a randomly chosen page
+- Simple and sometimes surprisingly effective
+- Avoids some worst-case behaviors of FIFO
+
+Limitations:
+- Ignores locality
+- Performance depends on luck
+
+---
+
+### LRU (Least Recently Used)
+
+- Evicts the page that has not been used for the longest time
+- Exploits **temporal locality**
+- Often performs close to optimal
+
+Key assumption:
+> Pages used recently are likely to be used again soon.
+
+Limitations:
+- Perfect LRU is expensive to implement
+
+---
+
+## 4. Locality: The Foundation of Good Policies
+
+Programs tend to exhibit **locality of reference**:
+
+### Temporal Locality
+- Recently accessed pages are likely to be accessed again
+
+### Spatial Locality
+- Pages near a recently accessed page are likely to be accessed
+
+LRU works well because it exploits temporal locality.  
+However, locality is a **heuristic**, not a guarantee.
+
+---
+
+## 5. Workloads Explain Policy Behavior
+
+Replacement policy effectiveness depends heavily on **workload characteristics**.
+
+### No-Locality Workload
+- Random access pattern
+- FIFO, Random, and LRU perform similarly
+- Cache size dominates performance
+
+### 80–20 Workload
+- 80% of accesses go to 20% of pages
+- Strong temporal locality
+- LRU significantly outperforms FIFO and Random
+
+### Looping-Sequential Workload
+- Sequential access that loops
+- FIFO and LRU can achieve 0% hit rate
+- Random may perform better by chance
+
+**Key lesson:**  
+No replacement policy is universally optimal.
+
+---
+
+## 6. Implementing Historical Policies
+
+Perfect LRU requires:
+- updating metadata on every memory access
+- tracking exact recency for all pages
+
+This is:
+- computationally expensive
+- not scalable for modern systems
+
+---
+
+## 7. Approximating LRU
+
+To make LRU practical, systems use **approximations**.
+
+### Use (Reference) Bit
+- Set by hardware on page access
+- Cleared by the OS
+- Provides coarse history information
+
+### Clock (Second-Chance) Algorithm
+- Pages arranged in a circular list
+- Pages with use bit = 1 get a second chance
+- Pages with use bit = 0 are evicted
+
+Clock:
+- approximates LRU
+- scales well
+- is widely used in real systems
+
+---
+
+## 8. Considering Dirty Pages
+
+Eviction cost differs between pages:
+
+- **Clean page**: can be evicted without disk I/O
+- **Dirty page**: must be written back to disk
+
+Hardware tracks this using a **dirty (modified) bit**.
+
+Replacement policies often:
+- prefer evicting clean pages
+- reduce costly disk writes
+
+---
+
+## 9. Other Virtual Memory Policies
+
+Replacement is not the only VM policy.
+
+### Page Selection Policy
+- **Demand paging**: load pages only when accessed
+- **Prefetching**: speculate and load pages early
+
+### Write Policy
+- Writing pages individually is inefficient
+- **Clustering** groups writes to reduce disk overhead
+
+---
+
+## 10. Thrashing
+
+### What Is Thrashing?
+Thrashing occurs when:
+- physical memory is oversubscribed
+- processes’ working sets do not fit in memory
+- system spends most time paging
+
+Effects:
+- CPU utilization drops
+- Disk activity spikes
+- System performance collapses
+
+---
+
+### Coping with Thrashing
+
+#### Admission Control
+- Reduce number of running processes
+- Ensure working sets fit in memory
+- Improves throughput
+
+#### Out-of-Memory (OOM) Killer
+- Terminates memory-intensive processes
+- Fast but potentially disruptive
+
+---
+
+## 11. Final Big Picture
+
+- Main memory is a cache for disk
+- Disk misses dominate performance
+- Locality enables effective caching
+- LRU exploits locality but is imperfect
+- Real systems rely on approximations
+- Replacement policy must match workload
+- Oversubscription leads to thrashing
+
+---
+
+## One-Sentence Exam Takeaway
+
+**Virtual memory performance depends on intelligent page-replacement policies that exploit locality, approximate history efficiently, and avoid system-wide thrashing under memory pressure.**
+
