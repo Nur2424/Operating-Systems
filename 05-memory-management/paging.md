@@ -847,7 +847,179 @@ You should be able to:
 - Describe the purpose of PTE bits
 - Explain why paging increases access time
 
-Mastering these points means you understand Chapter 18 at exam level.
+## Chapter 18 Summary — Paging
 
+Paging replaces contiguous and variable-sized memory allocation with a fixed-size memory management scheme that enables flexible, efficient virtual memory.
+
+---
+
+### Core Idea of Paging
+
+- Virtual memory is divided into **fixed-size pages**
+- Physical memory is divided into **fixed-size frames**
+- Pages can be placed in any free frame
+- A **page table** maps: Virtual Page Number (VPN) → Physical Frame Number (PFN)
+- Virtual addresses are split into:  VPN | offset
+- The **offset is never translated**
+
+Paging:
+- Eliminates **external fragmentation**
+- Introduces page tables and translation overhead
+- Enables virtual memory and page replacement
+
+---
+
+### Fundamental Paging Mechanisms
+
+#### Address Structure
+- Offset bits = `log2(page size)`
+- VPN bits = `address bits − offset bits`
+- Number of virtual pages = `2^(VPN bits)`
+
+This is used in:
+- page table size calculations
+- VPN/offset bit questions
+- address translation problems
+
+---
+
+#### Page Tables
+- One page table **per process**
+- Indexed by VPN
+- Each Page Table Entry (PTE) contains:
+- PFN
+- valid bit
+- present bit
+- protection bits (R/W/X)
+- reference bit
+- dirty bit
+- Page tables are stored in **main memory**
+
+---
+
+#### Performance Cost of Paging
+- Without optimization:
+- 1 memory access to read PTE
+- 1 memory access to read/write data
+- Each logical access → **2 physical memory accesses**
+- Instruction fetches incur the same overhead
+
+This motivates:
+- Effective Access Time (EAT)
+- Translation Lookaside Buffers (TLBs)
+
+---
+
+## How to Solve Paging Questions (Exam Guide)
+
+This section maps directly to the types of questions in past papers.
+
+---
+
+### Task Type 1: Page Table Size / Number of Entries
+
+**Steps**
+1. Compute number of virtual pages: pages = virtual_memory_size / page_size
+2. Number of pages = page table entries
+3. If memory usage is asked: page_table_size = entries × PTE_size
+
+**Key rule**
+- Page table size depends on **virtual memory**, not physical memory
+
+---
+
+### Task Type 2: VPN and Offset Bits
+
+**Steps**
+1. Offset bits: offset_bits = log2(page_size)
+2. VPN bits: VPN_bits = address_bits − offset_bits
+
+**Exam intuition**
+- Larger page → more offset bits
+- Smaller page → more VPN bits
+
+---
+
+### Task Type 3: Page Fault Definition
+
+A page fault occurs when:
+- The page is **valid**
+- But **not present** in physical memory
+
+Not a page fault:
+- Division by zero
+- Illegal instruction
+- I/O request
+
+If `valid = 0` → protection/segmentation fault
+
+---
+
+### Task Type 4: Effective Access Time (EAT)
+
+**General formula** 
+EAT = (1 − p) × normal_access_time + p × page_fault_time
+
+**Exam insight**
+- Page fault time is extremely large
+- Even very small `p` has big impact
+
+---
+
+### Task Type 5: Page Replacement (FIFO, LRU, Clock)
+
+**Correct method**
+1. Start with empty frames
+2. Process references sequentially
+3. On each miss:
+   - Count a page fault
+   - Apply replacement rule
+4. Track:
+   - order (FIFO)
+   - recency (LRU)
+   - reference bits (Clock)
+
+**Common mistakes**
+- Counting hits as faults
+- Replacing the wrong page
+
+---
+
+### Task Type 6: What Paging Allows (Conceptual)
+
+Correct statements:
+- Keeps only some pages in main memory
+- Allows processes larger than RAM
+- Increases degree of multiprogramming
+
+Incorrect statements:
+- Executes directly from disk
+- Improves I/O efficiency
+- Reduces multiprogramming
+
+---
+
+### Examiner’s Perspective
+
+Exams focus on:
+- Bit splitting (VPN / offset)
+- Counting pages and page table entries
+- Page fault reasoning
+- Replacement algorithms
+- Cost trade-offs
+
+They do **not** test OS implementation details.
+
+---
+
+### Final Takeaway
+
+Mastering paging means being able to:
+- Split addresses correctly
+- Size page tables
+- Understand translation cost
+- Analyze page faults and replacement behavior
+
+This chapter forms the foundation for all virtual memory questions. 
 
 
