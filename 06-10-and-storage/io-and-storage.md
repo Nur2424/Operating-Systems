@@ -1,17 +1,3 @@
-Combine:
-
-	•	Ch 36 — I/O Devices
-	•	Ch 37 — Hard disks
-
-Include:
-
-	•	Interrupts
-	•	DMA (concept)
-	•	Disk scheduling (idea only)
-
----
----
-
 ## 36.1 System Architecture
 
 This section describes **how I/O devices are physically organized and connected to a computer system**, and why a **hierarchical design** is used.
