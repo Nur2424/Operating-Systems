@@ -1785,4 +1785,163 @@ Disk scheduling exists because disk I/O is expensive; simple algorithms like SST
 ---
 
 
+# 🧠 Chapter 37 — Hard Disk Drives (Revision Summary)
+
+This chapter explains **how hard disks work physically**, **why they are slow**, and **how operating systems try to reduce that slowness**. Almost everything here answers one core question:
+
+> **Why is disk I/O expensive, and how can we minimize its cost?**
+
+---
+
+## 1. What a Disk Looks Like (Mental Model)
+
+A hard disk is a **mechanical device**, unlike RAM.
+
+**Key components:**
+- **Platters**: circular magnetic disks that store data persistently  
+- **Surfaces**: each side of a platter  
+- **Tracks**: concentric circles on a surface  
+- **Sectors**: fixed-size blocks (usually 512 bytes)  
+- **Spindle**: rotates platters at a constant speed (RPM)  
+- **Disk arm + head**: moves across tracks to read/write data  
+
+➡️ Disk access requires **physical movement**, which dominates performance.
+
+---
+
+## 2. Disk Interface (What the OS Sees)
+
+The operating system views the disk as:
+- A **linear array of sectors** numbered `0 ... N−1`
+- Each sector can be **read or written**
+
+**Important guarantees:**
+- A **single 512-byte write is atomic**
+- Larger writes (e.g., 4 KB) may partially complete → **torn writes**
+
+**Unwritten contract (assumptions):**
+- Accessing nearby blocks is faster than far-apart blocks  
+- Sequential access is much faster than random access  
+
+---
+
+## 3. Disk Geometry (Why Position Matters)
+
+Disk performance depends heavily on **where the head is** and **where data is located**.
+
+### Rotation
+- Measured in **RPM**
+- Average rotational delay ≈ **½ rotation**
+
+Example:
+- 10,000 RPM → ~6 ms per rotation → ~3 ms average delay
+
+### Tracks
+- Thousands per surface  
+- Head must be positioned over the correct track  
+
+### Seek
+- Movement of the disk arm between tracks  
+- Includes:
+  - acceleration
+  - coasting
+  - deceleration
+  - settling  
+- Often the **most expensive part** of disk I/O  
+
+---
+
+## 4. Disk I/O Time Model (Core Formula)
+
+Disk I/O time is the sum of **three components**:
+
+\[
+T_{I/O} = T_{seek} + T_{rotation} + T_{transfer}
+\]
+
+Where:
+- **Seek time**: move the head to the correct track  
+- **Rotational delay**: wait for the sector to rotate under the head  
+- **Transfer time**: actually read/write the data  
+
+⚠️ **This formula is exam-critical.**
+
+---
+
+## 5. Random vs Sequential I/O (Most Important Result)
+
+### Random I/O
+- Every request pays full seek + rotation cost  
+- Transfer time is negligible  
+- Extremely slow  
+
+### Sequential I/O
+- One seek + one rotation  
+- Large continuous transfer  
+- Near peak disk bandwidth  
+
+**Key result:**
+> Sequential I/O can be **200–300× faster** than random I/O.
+
+This is why:
+- File systems  
+- Databases  
+- OS buffering  
+
+all try hard to **preserve sequential access patterns**.
+
+---
+
+## 6. Disk Scheduling (Why Order Matters)
+
+Because disk I/O is expensive, the OS **reorders requests** to reduce cost.
+
+### SSTF (Shortest Seek Time First)
+- Chooses request closest to current head position  
+- Reduces seek time  
+- ❌ Can cause **starvation**
+
+### SCAN / C-SCAN (Elevator Algorithms)
+- Head moves in one direction, servicing requests along the way  
+- Prevents starvation  
+- More fair  
+
+### SPTF (Shortest Positioning Time First)
+- Accounts for **seek + rotation**
+- Closest approximation to SJF for disks  
+- Too complex for OS → usually implemented **inside the disk controller**
+
+---
+
+## 7. Modern Disk Reality
+
+Modern disks:
+- Support multiple outstanding requests  
+- Have internal controllers  
+- Know exact head position and rotation  
+
+Typical workflow:
+1. OS batches requests  
+2. Disk reorders them internally  
+3. Disk schedules using SPTF-like logic  
+
+---
+
+## 8. Additional Performance Techniques
+
+- **Track skew**: offsets sectors between adjacent tracks to allow smooth sequential reads  
+- **Multi-zoned disks**: outer tracks contain more sectors than inner tracks  
+- **Disk cache (track buffer)**:
+  - Caches recently accessed tracks  
+  - Speeds up repeated access  
+- **Write-back vs write-through caching**:
+  - Write-back → faster, riskier  
+  - Write-through → safer, slower  
+
+---
+
+## 🎯 Final Exam-Ready Takeaway
+
+> Hard disks are slow because they are mechanical; disk I/O time is dominated by seek and rotation, sequential access is orders of magnitude faster than random access, and disk scheduling exists to minimize head movement and rotational delay.
+
 
