@@ -1854,11 +1854,11 @@ Example:
 ## 4. Disk I/O Time Model (Core Formula)
 
 Disk I/O time is the sum of **three components**:
-
+$$
 \[
 T_{I/O} = T_{seek} + T_{rotation} + T_{transfer}
 \]
-
+$$
 Where:
 - **Seek time**: move the head to the correct track  
 - **Rotational delay**: wait for the sector to rotate under the head  
