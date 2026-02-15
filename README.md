@@ -8,6 +8,7 @@ The goal of this repository is simple:
 > **Use these notes instead of the textbook when revising for the exam.**
 
 ---
+
 Each file groups **multiple textbook chapters** that are conceptually and exam-wise related.
 
 ---
