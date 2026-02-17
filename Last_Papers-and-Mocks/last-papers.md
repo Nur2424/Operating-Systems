@@ -828,3 +828,805 @@ b. The reference bit is set to 0 and the heuristic moves to the next item of the
 c. The reference bit is set to 0 and the frame is replaced with the page that caused the page fault
 d. The reference bit is left to 1 and the frame is replaced with the page that caused the page fault
 
+---
+
+1. The operating system:
+A. Coincides with the kernel
+B. Acts as the interface between the physical machine (hardware) and user applications
+C. Is subject to scheduling policies
+D. Resides in main memory even after the machine is shut down
+
+2. In a microkernel operating system:
+A. Some functionalities are implemented in user space instead of inside the kernel
+B. User processes can interact directly with the system without system calls
+C. Communication between system components is more efficient
+D. No protection mechanisms are provided
+
+3. In a microkernel-based operating system:
+A. It does not need two CPU modes (user vs kernel mode)
+B. It does not need communication mechanisms between OS components
+C. It is more efficient than a monolithic system
+D. Except for fundamental functionalities, everything else runs in user space
+
+4. The machine-level instruction set:
+A. Is composed of an operation code and zero or more operands
+B. Is defined by a specific machine language
+C. Is an abstraction of the hardware architecture
+D. All the previous answers are correct
+
+5. CPU registers and cache are memory units:
+A. Non-volatile
+B. Fully managed by hardware architecture
+C. Fully managed by the OS
+D. Very cheap and highly performant
+
+6. Transition from user mode to kernel mode happens when:
+A. A program executes a function call
+B. The computer starts (bootstrap)
+C. The first instruction of a program executes
+D. The time slice expires
+
+7. The device controller of an I/O device:
+A. Contains status registers
+B. Contains control registers
+C. Contains data registers
+D. All the previous answers are correct
+
+8. System calls:
+A. Are always blocking
+B. Terminate the running process and start a new one
+C. Must be implemented in user space
+D. Must be implemented in kernel space
+
+9. A blocking system call:
+A. Moves process to ready queue
+B. Permanently interrupts the process
+C. Temporarily interrupts the process
+D. Requires polling
+
+10. The system call handler:
+A. Invoked by scheduler
+B. Invoked when quantum expires
+C. Runs in user space
+D. Uses the system call table
+
+11. Generic system call handler code:
+A. Runs in user space
+B. Indexed via interrupt vector table
+C. Invoked when quantum expires
+D. Invoked by scheduler
+
+12. Interrupt Vector Table (IVT):
+A. Updated at every interrupt
+B. Contains pointers to interrupt handlers
+C. Exists per process
+D. Contains error codes
+
+13. The system call table:
+A. Contains entries equal to number of system calls
+B. Entries equal to interrupts
+C. Entries equal to I/O devices
+D. Entries equal to running processes
+
+14. The system call table is managed by:
+A. I/O devices
+B. User process
+C. Kernel and user process
+D. Kernel
+
+15. If a system call implementation changes:
+A. User code must always change
+B. User code never changes
+C. No change if API changes
+D. No change if API stays the same
+
+16. CPU CPI = 5, frequency = 5 MHz. Instructions/sec?
+A. 1×10³
+B. I choose not to answer
+C. 25×10³
+D. 1×10⁶
+E. 25×10⁶
+
+17. On an m-core CPU, running processes at a time:
+A. Can exceed m
+B. Exactly m
+C. Insufficient data
+D. At most m
+
+⸻
+
+Processes
+
+18. Process creation happens via:
+A. System call
+B. Function call
+C. Interrupt
+D. None
+
+19. OS tracks process state using:
+A. Protected memory area
+B. CPU register
+C. Cache memory area
+D. PCB field
+
+20. Running → Ready when:
+A. I/O interrupt arrives
+B. User input request
+C. Page fault occurs
+D. Function call
+
+21. Running → Waiting when:
+A. I/O signal arrives
+B. Quantum expires
+C. Open TCP connection
+D. Function call
+
+22. Running → Waiting when:
+A. Requests user input
+B. Function call
+C. Quantum expires
+D. I/O interrupt
+
+23. Running → Waiting when:
+A. Quantum expires
+B. Mouse moves
+C. Function call
+D. I/O interrupt
+
+24. After three fork() calls, how many processes?
+A. 8
+B. 7
+C. 4
+D. 3
+
+25. Value printed by given code snippet:
+A. 5
+B. 20
+C. 15
+D. Insufficient data
+
+26. Process tree from given code.
+A. Option A
+B. Option B
+C. Option C
+D. Option D
+
+27. Process tree from given code.
+A. Option A
+B. Option B
+C. Option C
+D. Option D
+
+28. CPU-bound processes:
+A. High priority
+B. Low priority
+C. Short processes
+D. May never release CPU voluntarily
+
+⸻
+
+Scheduling
+
+29. CPU scheduler activates when:
+A. Writing on Discord
+B. Division by zero
+C. Quantum expires
+D. All answers
+
+30. Preemptive scheduling:
+A. Prioritizes CPU-bound
+B. Only at quantum expiry
+C. Only after system call
+D. Guarantees CPU time bound
+
+⸻
+
+Scheduling (continued)
+
+31. In a single-core time-sharing system with only CPU-bound processes:
+A. Multithreading improves latency
+B. Multithreading decreases completion time
+C. Multithreading improves throughput
+D. Multithreading gives no advantage
+
+32. With preemptive scheduling, the scheduler runs when:
+A. Running → Waiting
+B. Running → Ready
+C. Waiting → Ready
+D. All the previous answers
+
+33. A process arrives at t₀ = 2 and finishes at t_f = 15. Turnaround time:
+A. 13
+B. 2
+C. Insufficient data
+D. 15
+
+34. A process arrives at t₀ = 3 and finishes at t_f = 25. Waiting time:
+A. 3
+B. 22
+C. 25
+D. Insufficient data
+
+35. Given processes and scheduling policies (FCFS, SJF, RR q=2), which gives the smallest waiting time for process C?
+A. FCFS
+B. RR
+C. SJF
+D. All equal
+
+36. Average waiting time with Round Robin (q = 3):
+A. 6.5
+B. 6.75
+C. 7.15
+D. 5.85
+
+37. Average waiting time with Round Robin (q = 4):
+A. 4.85
+B. 4.25
+C. 4.5
+D. 4.75
+
+38. Average waiting time with SJF preemptive:
+A. 6
+B. 5.75
+C. 4.5
+D. 5
+
+39. Average waiting time with FCFS and I/O by process A:
+A. 4.5
+B. 5.5
+C. 7.5
+D. 6.5
+
+40. Average waiting time with FCFS and I/O by process B:
+A. 4.5
+B. 5.25
+C. 4
+D. 4.25
+
+⸻
+
+Threads and Synchronization
+
+41. Threads of the same process share:
+A. Stack
+B. Global variables
+C. CPU registers
+D. None
+
+42. A user thread:
+A. Requires kernel thread table
+B. Smallest unit scheduled by OS
+C. Managed in user space via library
+D. Always maps to one kernel thread
+
+43. One-to-one thread mapping:
+A. Managed by user library
+B. Only on multiprocessors
+C. Blocking call blocks all threads
+D. Managed by kernel
+
+44. Many-to-one thread mapping:
+A. Many user threads run on multiple CPUs
+B. Blocking call doesn’t block others
+C. Many user threads map to one kernel thread
+D. Many kernel threads map to one user thread
+
+45. Many-to-many thread mapping:
+A. No limit on kernel threads
+B. Only multiprocessors
+C. Blocking call blocks all threads
+D. Hybrid compromise
+
+46. Parallelism occurs when:
+A. Single-thread processes on multicore
+B. Multithreaded processes on single core
+C. Multithreaded processes on multicore
+D. All answers
+
+47. Concurrency occurs when:
+A. Multithreaded processes on single core
+B. Single-thread processes on single core
+C. Single-thread processes on multicore
+D. Multithreaded processes on multicore
+
+48. Thread communication vs process communication:
+A. Slower because of libraries
+B. Faster because no context switch
+C. Faster because shared address space
+D. No difference
+
+49. Kernel thread:
+A. Always maps to one user thread
+B. Managed in user space
+C. Smallest schedulable unit
+D. OS internal process
+
+50. Using a lock requires:
+A. Lock initially free
+B. Acquire before critical section
+C. Release after critical section
+D. All answers
+
+51. Acquiring a lock:
+A. Must be atomic
+B. Requires hardware atomic instructions
+C. Requires disabling interrupts
+D. None
+
+52. Semaphore can be used to:
+A. Enforce scheduling
+B. Access kernel code
+C. Exchange messages between processes/threads
+D. Manage interrupts
+
+53. wait() on semaphore value 2:
+A. Value stays 2 and continues
+B. Value becomes 1 and blocks
+C. Value becomes 3 and continues
+D. Value becomes 1 and continues
+
+54. test-and-set instruction:
+A. Atomic instruction for synchronization
+B. Disables interrupts
+C. Updates multiple registers
+D. Resets semaphore
+
+55. Difference between deadlock and starvation:
+A. User vs system code
+B. Starvation blocks whole system
+C. No difference
+D. Deadlock blocks whole system
+
+56. Producer-consumer execution result (val=73):
+A. 72
+B. 73
+C. 74
+D. Insufficient data
+
+57. Producer-consumer execution result (val=24):
+A. 23
+B. 24
+C. 25
+D. Insufficient data
+
+58. Producer-consumer execution result (val=19):
+A. 18
+B. 19
+C. 20
+D. Insufficient data
+
+59. Resource Allocation Graph state:
+A. Depends on scheduler
+B. Deadlock present
+C. No deadlock
+D. Impossible to answer
+
+60. Resource Allocation Graph state:
+A. Depends on scheduler
+B. Deadlock present
+C. No deadlock
+D. Impossible to answer
+
+⸻
+
+Deadlocks (continued)
+
+61. Resource Allocation Graph state:
+A. Certainly deadlock
+B. Could have deadlock
+C. Certainly no deadlock
+D. Impossible to answer
+
+62. Resource Allocation Graph state:
+A. Certainly deadlock
+B. Could have deadlock
+C. Certainly no deadlock
+D. Impossible to answer
+
+⸻
+
+Main Memory
+
+63. Address binding means:
+A. Translation from logical to physical addresses
+B. Initialization of global variables
+C. Linking code with libraries
+D. None
+
+64. Swapping allows to:
+A. Implement dynamic relocation
+B. Solve external fragmentation
+C. Temporarily move processes to disk
+D. Swap memory areas of processes
+
+65. Paging:
+A. Logical address space divided into fixed-size pages
+B. Needs no hardware support
+C. Physical address space divided into frames
+D. Solves internal fragmentation
+
+66. TLB:
+A. Shared by all processes
+B. Speeds address translation
+C. Contains subset of page table
+D. All answers
+
+67. Page table size:
+A. Directly proportional to page size
+B. Adapts to memory requests
+C. Depends on page size
+D. Changes dynamically
+
+68. Page table size:
+A. Dynamic per process
+B. Directly proportional to page size
+C. Inversely proportional to page size
+D. Adapts to memory requests
+
+69. Logical address = 576, base = 24 → physical address?
+A. 576
+B. 552
+C. 600
+D. Insufficient data
+
+70. Process = 2488 B, block = 2699 B:
+A. Allocate full block → internal fragmentation
+B. Allocate needed → external fragmentation
+C. Wait for multiple block
+D. Wait for smaller block
+
+71. Process = 4996 B, block = 5016 B:
+A. Wait smaller block
+B. Allocate full block → internal fragmentation
+C. Wait multiple block
+D. Allocate needed → external fragmentation
+
+72. Worst-fit, need 99 KiB (102, 99, 256, 128):
+A. A
+B. C
+C. B
+D. D
+
+73. Worst-fit, need 99 KiB (300,600,350,200,750,125):
+A. B
+B. Cannot allocate
+C. C + remaining to A
+D. E
+
+74. First-fit need 128 KiB (105,916,129,80):
+A. A
+B. D
+C. B
+D. C
+
+75. First-fit need 115 KiB (300,600,350,200,750,125):
+A. A
+B. F
+C. E
+D. D
+
+76. Best-fit need 375 KiB (300,600,350,200,750,125):
+A. B
+B. C + remaining to A
+C. E
+D. Cannot allocate
+
+77. Best-fit need 34 KiB (36,90,42,35):
+A. A
+B. B
+C. C
+D. D
+
+78. 4 KiB memory, 2 B words, page 128 B → bits?
+A. p=6 offset=5
+B. p=7 offset=5
+C. p=5 offset=7
+D. p=5 offset=6
+
+79. Memory 512 B, frame 16 B, address 197:
+A. p=5 off=12
+B. Insufficient data
+C. p=13 off=0
+D. p=12 off=5
+
+80. Memory 100 B, frame 10 B, address 37:
+A. p=3 off=7
+B. Insufficient data
+C. p=7 off=3
+D. p=0 off=37
+
+81. Process 2097 B, block 2104 B:
+A. Wait multiple
+B. Allocate full block → internal fragmentation
+C. Wait smaller
+D. Allocate needed → external fragmentation
+
+82. 2 KiB memory, word size 4 B → bits?
+A. 2
+B. 9
+C. 11
+D. Insufficient data
+
+83. 4 KiB memory, word size 2 B → bits?
+A. 10
+B. 11
+C. 12
+D. Insufficient data
+
+84. 8 KiB memory, byte addressing, page 128 B → entries?
+A. Insufficient data
+B. 13
+C. 64
+D. 7
+
+85. 8 KiB memory, word size 4 B, page 256 B → entries?
+A. 32
+B. 2048
+C. 8
+D. 5
+
+86. 16 KiB memory, word 4 B, page 64 B → entries?
+A. 8
+B. 14
+C. 256
+D. Insufficient data
+
+87. Logical 21-bit, physical 16-bit, page 2 KiB → max physical memory?
+A. 32 KiB
+B. 64 KiB
+C. 2 MiB
+D. No limit
+
+⸻
+
+Virtual Memory
+
+88. Virtual memory allows:
+A. Increase I/O efficiency
+B. Keep only some pages in RAM
+C. Decrease multiprogramming
+D. Execute directly from disk
+
+89. Idempotent instruction page fault:
+A. Process terminates
+B. Cannot cause page fault
+C. Not re-executed
+D. Re-executed
+
+90. External fragmentation:
+A. Needs hardware
+B. Only solved by reboot
+C. Due to contiguous allocation
+D. Causes interrupt
+
+91. External fragmentation:
+A. Only solved by reboot
+B. Causes interrupt
+C. Needs hardware
+D. Due to contiguous allocation/deallocation
+
+92. Working set:
+A. Fixed per time slice
+B. Large
+C. Small
+D. Fixed entire execution
+
+93. LRU with timestamps:
+A. Increment counter
+B. Update timestamp
+C. Set validity bit
+D. None
+
+94. Page faults (LRU):
+A. 4
+B. 5
+C. 6
+D. 7
+
+95. Page faults (LRU):
+A. 10
+B. 7
+C. 9
+D. 6
+
+96. Page faults (LRU):
+A. 2
+B. 4
+C. 5
+D. 1
+
+97. Page faults (FIFO):
+A. 6
+B. 7
+C. 4
+D. 8
+
+98. Page faults (FIFO):
+A. 6
+B. 7
+C. 5
+D. 4
+
+99. Page faults (FIFO):
+A. 7
+B. 8
+C. 6
+D. 5
+
+⸻
+
+Secondary Memory
+
+100. Contiguous file allocation:
+A. Good random & sequential
+B. Causes fragmentation
+C. Needs free space tracking
+D. All answers
+
+101. Prefer contiguous allocation when disk is:
+A. Read-only CD/DVD
+B. Magnetic disk
+C. SSD
+D. None
+
+102. Seek time:
+A. Position head on sector
+B. Includes transfer time
+C. Position head on cylinder
+D. Negligible
+
+103. Disk 15 cylinders × 500 MB → capacity?
+A. 7.5 GB
+B. 75 GB
+C. 750 MB
+D. Insufficient data
+
+104. Expected memory access time problem.
+A. ~30.5 ns
+B. ~30.5 µs
+C. ~3.05 µs
+D. ~305 ns
+
+105. Expected memory access time problem.
+A. ~150.025 µs
+B. ~15.025 ns
+C. ~150.025 ns
+D. ~15.025 µs
+
+106. Page fault probability problem.
+A. ~0.02%
+B. ~0.2%
+C. ~0.002%
+D. ~0.0002%
+
+107. Page fault probability constraint.
+A. Insufficient data
+B. ~0.00024%
+C. ~0.000024%
+D. ~0.0000024%
+
+108. Disk scheduling SSTF.
+A. 86
+B. 49
+C. 123
+D. 88
+
+109. Disk scheduling FCFS.
+A. 290
+B. 240
+C. 238
+D. 265
+
+110. Disk scheduling FCFS.
+A. 595
+B. 558
+C. 650
+D. 638
+
+111. Disk scheduling FCFS.
+A. 650
+B. 522
+C. 638
+D. 595
+
+112. Disk scheduling SCAN.
+A. 76
+B. 87
+C. 46
+D. 93
+
+113. Disk scheduling C-SCAN.
+A. 189
+B. 193
+C. 187
+D. 196
+
+114. Disk transfer data.
+A. 9.375 MB
+B. 7.5 MB
+C. 937.5 KB
+D. Insufficient data
+
+115. Disk transfer data.
+A. 9.375 MB
+B. 70 MB
+C. 70 KB
+D. Insufficient data
+
+116. Rotational delay.
+A. 7 ms
+B. 2 ms
+C. 16 ms
+D. Insufficient data
+
+⸻
+
+File Systems
+
+117. Global open file table:
+A. Shared by all processes
+B. One entry per open file
+C. Maintains counter
+D. All answers
+
+118. Local open file table:
+A. Contains protection info
+B. Contains disk location pointer
+C. Contains pointer to global table
+D. Shared among processes
+
+119. Sequential file access example:
+A. Compiler
+B. DB search
+C. Phone search
+D. None
+
+120. Indexed allocation preferred when file is:
+A. Small
+B. Large
+C. Large sequential
+D. Large random access
+
+121. Linked allocation preferred when file is:
+A. Small
+B. Large random
+C. Large
+D. Large sequential
+
+122. UNIX permissions 101000000:
+A. Owner read+write
+B. Owner read+execute
+C. Owner write+execute
+D. No permissions
+
+123. UNIX permissions 011000000:
+A. Owner read+write
+B. Owner read+execute
+C. No permissions
+D. Owner write+execute
+
+124. UNIX permissions 111101101:
+A. Owner all, others write+execute
+B. Owner all, others read+write
+C. Owner all, others read+execute
+D. Everyone all
+
+125. ln file_1 file_2:
+A. Hard link file_2→file_1
+B. Hard link file_1→file_2
+C. Soft link file_1→file_2
+D. Soft link file_2→file_1
+
+126. ln -s file_1 file_2:
+A. Hard link file_2→file_1
+B. Hard link file_1→file_2
+C. Soft link file_1→file_2
+D. Soft link file_2→file_1
+
+127. Multi-level indexed file max size:
+A. ~20.2 KB
+B. ~20.2 MB
+C. ~20.7 KB
+D. ~20.7 MB
+
+
